@@ -13,7 +13,20 @@ struct ChecklistView: View {
     let viewModel: ChecklistViewModel
     let palette: ChecklistPalette
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
+        Group {
+            if viewModel.sections.isEmpty {
+                emptyState
+            } else {
+                list
+            }
+        }
+        .animation(reduceMotion ? nil : Theme.Motion.spring, value: viewModel.sections.map(\.id))
+    }
+
+    private var list: some View {
         List {
             ForEach(viewModel.sections) { section in
                 Section {
@@ -35,7 +48,21 @@ struct ChecklistView: View {
         .listSectionSpacing(Theme.Layout.sectionSpacing)
         .scrollContentBackground(.hidden)
         .scrollIndicators(.hidden)
-        .animation(Theme.Motion.spring, value: viewModel.sections.map(\.id))
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "checklist")
+                .font(.system(size: 40, weight: .semibold))
+            Text("Nothing scheduled")
+                .font(.headline)
+            Text("Enable a module above to add tasks.")
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+        }
+        .foregroundStyle(palette.secondaryText)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, Theme.Layout.screenPadding)
     }
 
     private func row(for item: ChecklistItem) -> some View {

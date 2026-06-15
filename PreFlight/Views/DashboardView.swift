@@ -13,6 +13,7 @@ import SwiftUI
 struct DashboardView: View {
     @Bindable var viewModel: ChecklistViewModel
     @Environment(\.colorScheme) private var systemScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showResetConfirmation = false
 
     private var palette: ChecklistPalette {
@@ -47,14 +48,14 @@ struct DashboardView: View {
                 .padding(.bottom, 16)
         }
         .preferredColorScheme(viewModel.selectedChecklist == .evening ? .dark : nil)
-        .animation(Theme.Motion.spring, value: viewModel.selectedChecklist)
+        .animation(reduceMotion ? nil : Theme.Motion.spring, value: viewModel.selectedChecklist)
         .confirmationDialog(
             "Reset both sequences?",
             isPresented: $showResetConfirmation,
             titleVisibility: .visible
         ) {
             Button("Reset for tomorrow", role: .destructive) {
-                withAnimation(Theme.Motion.spring) { viewModel.resetAll() }
+                withAnimation(reduceMotion ? nil : Theme.Motion.spring) { viewModel.resetAll() }
             }
             Button("Cancel", role: .cancel) {}
         } message: {

@@ -15,9 +15,13 @@ struct ProgressHeaderView: View {
     let total: Int
     let palette: ChecklistPalette
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var percentText: String {
         "\(Int((progress * 100).rounded()))%"
     }
+
+    private var isComplete: Bool { total > 0 && completed == total }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -26,10 +30,11 @@ struct ProgressHeaderView: View {
                     Text(checklist.title)
                         .font(.largeTitle.weight(.bold))
                         .foregroundStyle(palette.primaryText)
-                    Text(checklist.subtitle.uppercased())
+                    Text(isComplete ? "SEQUENCE COMPLETE ✓" : checklist.subtitle.uppercased())
                         .font(.caption.weight(.semibold))
                         .tracking(1.5)
-                        .foregroundStyle(palette.secondaryText)
+                        .foregroundStyle(isComplete ? palette.tint : palette.secondaryText)
+                        .contentTransition(.opacity)
                 }
 
                 Spacer(minLength: 12)
@@ -43,7 +48,7 @@ struct ProgressHeaderView: View {
                         .font(.subheadline.weight(.medium).monospacedDigit())
                         .foregroundStyle(palette.secondaryText)
                 }
-                .animation(Theme.Motion.snappy, value: progress)
+                .animation(reduceMotion ? nil : Theme.Motion.snappy, value: progress)
             }
 
             progressBar
@@ -70,7 +75,7 @@ struct ProgressHeaderView: View {
                     .frame(width: max(0, geo.size.width * progress))
             }
         }
-        .animation(Theme.Motion.spring, value: progress)
+        .animation(reduceMotion ? nil : Theme.Motion.spring, value: progress)
     }
 }
 

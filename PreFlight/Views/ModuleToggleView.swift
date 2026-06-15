@@ -13,6 +13,8 @@ struct ModuleToggleView: View {
     let viewModel: ChecklistViewModel
     let palette: ChecklistPalette
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         HStack(spacing: 10) {
             ForEach(ModuleType.optionalModules) { module in
@@ -21,7 +23,7 @@ struct ModuleToggleView: View {
                     isOn: viewModel.isEnabled(module),
                     palette: palette
                 ) {
-                    withAnimation(Theme.Motion.spring) {
+                    withAnimation(reduceMotion ? nil : Theme.Motion.spring) {
                         viewModel.setModule(module, enabled: !viewModel.isEnabled(module))
                     }
                 }

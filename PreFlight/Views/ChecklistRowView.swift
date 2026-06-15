@@ -14,6 +14,8 @@ struct ChecklistRowView: View {
     let item: ChecklistItem
     let palette: ChecklistPalette
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         HStack(spacing: 14) {
             checkbox
@@ -42,8 +44,8 @@ struct ChecklistRowView: View {
         )
         .opacity(rowOpacity)
         .contentShape(Rectangle())
-        .animation(Theme.Motion.snappy, value: item.isCompleted)
-        .animation(Theme.Motion.spring, value: item.isSkipped)
+        .animation(reduceMotion ? nil : Theme.Motion.snappy, value: item.isCompleted)
+        .animation(reduceMotion ? nil : Theme.Motion.spring, value: item.isSkipped)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(item.title)
         .accessibilityValue(accessibilityValue)
