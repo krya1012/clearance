@@ -12,7 +12,7 @@ import SwiftData
 
 enum SeedData {
 
-    private static let currentVersion = 2
+    private static let currentVersion = 3
     private static let versionKey = "PreFlight.seedVersion.v1"
 
     // MARK: - Entry point
@@ -172,15 +172,13 @@ enum SeedData {
 
         add(
             [
-                "Pack 1 training t-shirt (breathable)",
-                "Pack 1 pair of athletic shorts or track pants",
-                "Pack 1 pair of clean gym socks",
-                "Pack clean indoor training sneakers",
-                "Pack 1 small microfiber towel (for gym benches)",
-                "Pack deodorant / body spray",
-                "Ensure wireless headphones are 100% charged",
-                "Put Gym Membership Card / QR Code in bag pocket",
-                "Prep water bottle / shaker (pre-measured pre-workout or protein)",
+                "Apparel: Pack 1 training t-shirt and 1 pair of athletic shorts/pants",
+                "Undergarments: Pack 1 pair of clean gym socks and fresh underwear",
+                "Footwear: Pack clean indoor training sneakers (check soles for dirt)",
+                "Hygiene Barrier: Pack 1 small microfiber towel (to layer over gym benches)",
+                "Electronics: Pack wireless headphones (verify battery is charged) and fitness tracker",
+                "Access: Place Gym Membership Card / Key Fob into the bag's secure pocket",
+                "Nutrition/Hydration: Prep water bottle or shaker with pre-measured supplement powder",
             ],
             checklist: .evening, module: .gym,
             phase: "Collect & Pack — Evening Before", phaseIndex: 0
@@ -188,11 +186,11 @@ enum SeedData {
 
         add(
             [
-                "Remove sweaty training t-shirt and shorts → laundry bin",
-                "Remove used workout towel → laundry bin",
-                "Take out training shoes → place on rack to air out",
-                "Take out shaker bottle → wash with soap immediately",
-                "Put headphones back on the charger",
+                "Laundry Strip: Extract sweaty t-shirt, shorts, and socks → drop directly into the laundry bin",
+                "Towel Extraction: Remove the used bench towel → place in laundry",
+                "Footwear Airing: Take out training sneakers → place on an open rack to air out",
+                "Shaker Sanitize: Empty and wash the shaker bottle with soap immediately to prevent odors",
+                "Electronics Dock: Connect headphones to the charging cable",
             ],
             checklist: .evening, module: .gym,
             phase: "Post-Workout Unload & Reset — Evening Return", phaseIndex: 1
@@ -204,14 +202,13 @@ enum SeedData {
 
         add(
             [
-                "Pack swimming trunks / jammers",
-                "Pack swim cap (silicone or Lycra)",
-                "Pack swim goggles (check anti-fog layer is clean)",
-                "Pack rubber pool slides / flip-flops (hygiene in showers/deck)",
-                "Pack shower gel / body wash and loofah (mandatory pre/post wash)",
-                "Pack 1 large, highly absorbent body towel",
-                "Pack 1 heavy-duty waterproof dry-bag (to hold wet items)",
-                "Verify Pool Medical Certificate / Access Pass is in the bag",
+                "Swimwear: Pack swimming trunks / jammers",
+                "Head/Eye Gear: Pack swim cap and swim goggles (verify anti-fog lenses are clear)",
+                "Deck Footwear: Pack rubber pool slides / flip-flops (for shower and deck hygiene)",
+                "Shower Kit: Pack body wash/soap, shampoo, and a loofah",
+                "Drying Layer: Pack 1 large, highly absorbent body towel",
+                "Moisture Barrier: Pack 1 heavy-duty waterproof dry-bag (to isolate wet items later)",
+                "Access: Verify Pool Pass / Access Card is inside the bag",
             ],
             checklist: .evening, module: .swim,
             phase: "Collect & Pack — Evening Before", phaseIndex: 0
@@ -219,11 +216,11 @@ enum SeedData {
 
         add(
             [
-                "Remove wet swimming trunks → rinse with fresh water, hang to dry",
-                "Remove wet body towel → hang to dry or toss in laundry bin",
-                "Remove pool slides → wipe down or leave to dry face down",
-                "Rinse goggles and swim cap with fresh water (no soap), air-dry flat",
-                "Open empty waterproof dry-bag fully to air out (prevent mold)",
+                "Wet Extraction: Pull wet swimming trunks out of the dry-bag → rinse with fresh water and hang up to dry immediately",
+                "Towel Drying: Remove the wet body towel → hang on a drying rack or toss into the laundry",
+                "Optics Care: Rinse goggles and swim cap with clean, fresh water (no soap) → lay flat to air dry",
+                "Footwear Sanitize: Take out pool slides → wipe down and leave to dry",
+                "Dry-Bag Airing: Turn the empty waterproof dry-bag inside out or leave it completely open to prevent mold and mildew growth",
             ],
             checklist: .evening, module: .swim,
             phase: "Post-Workout Unload & Reset — Evening Return", phaseIndex: 1
