@@ -2,9 +2,9 @@
 //  DashboardView.swift
 //  PreFlight
 //
-//  The single screen: a 🌅 Takeoff / 🌌 Landing switch, a progress header, the
-//  optional-module quick-toggles, the grouped task stream, and a bottom-anchored
-//  "Reset for tomorrow" control.
+//  The single screen: a top bar with the 🌅/🌌 switch and + button, a progress
+//  header, module quick-toggles, the grouped task stream, and a floating Reset
+//  control at the bottom.
 //
 
 import SwiftData
@@ -15,6 +15,7 @@ struct DashboardView: View {
     @Environment(\.colorScheme) private var systemScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showResetConfirmation = false
+    @State private var editorMode: EditorMode? = nil
 
     private var palette: ChecklistPalette {
         Theme.palette(for: viewModel.selectedChecklist, scheme: systemScheme)
@@ -26,7 +27,7 @@ struct DashboardView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 18) {
-                sequencePicker
+                topBar
 
                 ProgressHeaderView(
                     checklist: viewModel.selectedChecklist,
@@ -40,7 +41,11 @@ struct DashboardView: View {
                 ModuleToggleView(viewModel: viewModel, palette: palette)
                     .padding(.horizontal, Theme.Layout.screenPadding)
 
-                ChecklistView(viewModel: viewModel, palette: palette)
+                ChecklistView(
+                    viewModel: viewModel,
+                    palette: palette,
+                    onEdit: { editorMode = .edit($0) }
+                )
             }
             .padding(.top, 8)
 
@@ -48,14 +53,23 @@ struct DashboardView: View {
                 .padding(.bottom, 16)
         }
         .preferredColorScheme(viewModel.selectedChecklist == .evening ? .dark : nil)
-        .animation(reduceMotion ? nil : Theme.Motion.spring, value: viewModel.selectedChecklist)
+        .animation(
+            reduceMotion ? nil : Theme.Motion.spring,
+            value: viewModel.selectedChecklist
+        )
+        // Add / edit sheet — one sheet handles both modes via EditorMode.id
+        .sheet(item: $editorMode) { mode in
+            ItemEditorView(viewModel: viewModel, mode: mode)
+        }
         .confirmationDialog(
             "Reset both sequences?",
             isPresented: $showResetConfirmation,
             titleVisibility: .visible
         ) {
             Button("Reset for tomorrow", role: .destructive) {
-                withAnimation(reduceMotion ? nil : Theme.Motion.spring) { viewModel.resetAll() }
+                withAnimation(reduceMotion ? nil : Theme.Motion.spring) {
+                    viewModel.resetAll()
+                }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -63,13 +77,26 @@ struct DashboardView: View {
         }
     }
 
-    private var sequencePicker: some View {
-        Picker("Sequence", selection: $viewModel.selectedChecklist) {
-            ForEach(ChecklistType.allCases) { type in
-                Text(type.label).tag(type)
+    // MARK: - Sub-views
+
+    private var topBar: some View {
+        HStack(spacing: 12) {
+            Picker("Sequence", selection: $viewModel.selectedChecklist) {
+                ForEach(ChecklistType.allCases) { type in
+                    Text(type.label).tag(type)
+                }
             }
+            .pickerStyle(.segmented)
+
+            Button {
+                editorMode = .add(checklist: viewModel.selectedChecklist)
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(palette.tint)
+            }
+            .accessibilityLabel("Add new task")
         }
-        .pickerStyle(.segmented)
         .padding(.horizontal, Theme.Layout.screenPadding)
     }
 
