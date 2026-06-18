@@ -1,6 +1,6 @@
 //
-//  PreFlightApp.swift
-//  PreFlight
+//  ClearanceApp.swift
+//  Clearance
 //
 //  The application entry point.
 //
@@ -18,7 +18,7 @@ import SwiftData
 import SwiftUI
 
 @main
-struct PreFlightApp: App {
+struct ClearanceApp: App {
 
     /// The SwiftData stack. `ModelContainer` is `Sendable`, so storing it as a
     /// plain `let` is concurrency-safe.
@@ -30,7 +30,6 @@ struct PreFlightApp: App {
 
     init() {
         do {
-            // A single configuration backed by the default on-disk store.
             let container = try ModelContainer(
                 for: ChecklistItem.self,
                 configurations: ModelConfiguration(isStoredInMemoryOnly: false)
@@ -38,9 +37,7 @@ struct PreFlightApp: App {
             self.modelContainer = container
             _viewModel = State(initialValue: ChecklistViewModel(modelContext: container.mainContext))
         } catch {
-            // A failure here means the persistent store is unusable — there is no
-            // sensible way to continue, so surface it loudly during development.
-            fatalError("Failed to initialise the PreFlight ModelContainer: \(error)")
+            fatalError("Clearance: failed to initialise the ModelContainer — \(error)")
         }
     }
 
