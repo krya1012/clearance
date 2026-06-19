@@ -13,6 +13,7 @@ import SwiftUI
 struct ScheduleEditorView: View {
     @Bindable var viewModel: ChecklistViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var showResetConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -50,10 +51,28 @@ struct ScheduleEditorView: View {
                             Text(hourLabel(hour)).tag(hour)
                         }
                     }
+                    Button("Reset now", role: .destructive) {
+                        showResetConfirmation = true
+                    }
+                    .accessibilityLabel("Reset both sequences now")
+                    .accessibilityHint("Unchecks every task in both Takeoff and Landing")
                 } header: {
                     Text("Auto-reset")
                 } footer: {
-                    Text("Tasks are cleared automatically on first open after this time. Tap \"Reset for tomorrow\" any time to reset early.")
+                    Text("Tasks are cleared automatically on first open after the set time. Tap \"Reset now\" to reset early.")
+                }
+                .confirmationDialog(
+                    "Reset both sequences?",
+                    isPresented: $showResetConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Reset for tomorrow", role: .destructive) {
+                        viewModel.resetAll()
+                        dismiss()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This unchecks every task in both Takeoff and Landing.")
                 }
 
                 if !viewModel.enabledModules.isEmpty {
