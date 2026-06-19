@@ -12,7 +12,7 @@ import SwiftData
 
 enum SeedData {
 
-    private static let currentVersion = 3
+    private static let currentVersion = 4
     private static let versionKey = "Clearance.seedVersion.v1"
 
     // MARK: - Entry point
@@ -109,10 +109,15 @@ enum SeedData {
 
         add(
             [
-                "Grab the packed Gym 'Dry-Pack'",
+                "Status Check: Confirm the Gym 'Dry-Pack' was packed last night",
+                "Hydration: Fill water bottle / shaker with cold water and stow it",
+                "Fuel: Add a pre-workout snack (banana, bar) or supplement scoop",
+                "Power: Confirm headphones and fitness tracker are charged",
+                "Access: Confirm Gym Membership Card / Key Fob is in the bag",
+                "Grab the Gym 'Dry-Pack' on your way out the door",
             ],
             checklist: .morning, module: .gym,
-            phase: "Pre-Exit Avionics", phaseIndex: 0
+            phase: "Final Gear Check — Before Exit", phaseIndex: 0
         )
 
         // ─────────────────────────────────────────
@@ -121,10 +126,15 @@ enum SeedData {
 
         add(
             [
-                "Grab the packed Swim 'Acwa-Pack'",
+                "Status Check: Confirm the Swim 'Acwa-Pack' was packed last night",
+                "Optics: Confirm goggles and swim cap are inside the bag",
+                "Access: Confirm Pool Pass / Access Card is inside the bag",
+                "Hydration: Fill water bottle with cold water and stow it",
+                "Dry Layer: Confirm body towel and waterproof dry-bag are packed",
+                "Grab the Swim 'Acwa-Pack' on your way out the door",
             ],
             checklist: .morning, module: .swim,
-            phase: "Pre-Exit Avionics", phaseIndex: 0
+            phase: "Final Gear Check — Before Exit", phaseIndex: 0
         )
 
         // ─────────────────────────────────────────
