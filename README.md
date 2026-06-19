@@ -63,6 +63,42 @@ automatically** — just drop new files into the folder and Xcode picks them up.
 
 If no simulator runtime is listed, add one in **Xcode ▸ Settings ▸ Platforms**.
 
+### Build & run from the terminal
+
+**Build only** (verify zero warnings under Swift 6):
+```bash
+xcodebuild -project Clearance.xcodeproj -scheme Clearance \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  build
+```
+
+**Build, install, and launch** on a simulator:
+```bash
+# 1. Build into a local output folder
+xcodebuild -project Clearance.xcodeproj -scheme Clearance \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -derivedDataPath .build \
+  build
+
+# 2. Boot the simulator
+open -a Simulator
+xcrun simctl boot "iPhone 17" 2>/dev/null; true
+
+# 3. Install and launch
+xcrun simctl install booted \
+  .build/Build/Products/Debug-iphonesimulator/Clearance.app
+xcrun simctl launch booted com.krya1012.clearance.app
+```
+
+**Clean build** (useful after schema changes or seed-version bumps):
+```bash
+xcodebuild -project Clearance.xcodeproj -scheme Clearance \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  clean build
+```
+
+To list all available simulator names: `xcrun simctl list devices available`.
+
 ### Run on your iPhone
 
 A successful **build** is not the same as a successful **install + launch**. On a physical
@@ -213,14 +249,12 @@ Open in Xcode 16+, run on an iOS 17+ simulator or your iPhone, and confirm:
 
 ## License
 
-Licensed under the **[PolyForm Noncommercial License 1.0.0](LICENSE.md)**.
+Licensed under **[CC BY-NC 4.0](LICENSE.md)** (Creative Commons
+Attribution-NonCommercial 4.0 International).
 
-You're free to **use, copy, modify, and share** Clearance for any **noncommercial**
-purpose — personal use, study, hobby projects, research, and use by nonprofits,
-schools, or public institutions. **Commercial use is not permitted.** See
-[`LICENSE.md`](LICENSE.md) for the full terms.
-
-> Note: a no-commercial-use restriction means this is *source-available*, not an
-> OSI-approved "open source" license. This summary isn't legal advice.
+You are free to use, copy, adapt, and redistribute Clearance for any
+**noncommercial** purpose, provided you give appropriate **credit** and indicate
+if changes were made. **Commercial use is not permitted.** See
+[`LICENSE.md`](LICENSE.md) for details.
 </content>
 </invoke>
