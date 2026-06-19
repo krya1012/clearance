@@ -1,6 +1,6 @@
 //
 //  Theme.swift
-//  PreFlight
+//  Clearance
 //
 //  Centralised design tokens: layout metrics, motion curves, and a per-sequence
 //  color palette.

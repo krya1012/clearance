@@ -1,6 +1,6 @@
 //
 //  SeedData.swift
-//  PreFlight
+//  Clearance
 //
 //  Versioned seed data. Bump `currentVersion` whenever the canonical checklist
 //  content changes — on next launch the old items are deleted and the fresh set
@@ -13,7 +13,7 @@ import SwiftData
 enum SeedData {
 
     private static let currentVersion = 3
-    private static let versionKey = "PreFlight.seedVersion.v1"
+    private static let versionKey = "Clearance.seedVersion.v1"
 
     // MARK: - Entry point
 
@@ -33,7 +33,7 @@ enum SeedData {
         UserDefaults.standard.set(currentVersion, forKey: versionKey)
     }
 
-    // MARK: - Canonical content (v2)
+    // MARK: - Canonical content
 
     static func defaultItems() -> [ChecklistItem] {
         var items: [ChecklistItem] = []

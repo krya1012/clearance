@@ -1,6 +1,6 @@
 //
 //  ItemEditorView.swift
-//  PreFlight
+//  Clearance
 //
 //  A unified sheet for adding a new task or editing an existing one.
 //  • Add mode  — full form: title, checklist, module, phase.

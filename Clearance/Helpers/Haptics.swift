@@ -1,6 +1,6 @@
 //
 //  Haptics.swift
-//  PreFlight
+//  Clearance
 //
 //  Thin, main-actor-isolated wrapper around UIKit's feedback generators so the
 //  rest of the app can request tactile feedback without touching UIKit directly.

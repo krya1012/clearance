@@ -1,6 +1,6 @@
 //
 //  ChecklistView.swift
-//  PreFlight
+//  Clearance
 //
 //  The scrollable task stream, grouped by module section and phase sub-header.
 //  Swipe right → Edit.  Swipe left → Skip / Restore + Delete.

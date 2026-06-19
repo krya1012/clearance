@@ -1,6 +1,6 @@
 //
 //  Extensions.swift
-//  PreFlight
+//  Clearance
 //
 //  Small, focused helpers shared across the UI layer.
 //

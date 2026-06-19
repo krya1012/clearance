@@ -1,6 +1,6 @@
 //
 //  DashboardView.swift
-//  PreFlight
+//  Clearance
 //
 //  The single screen: a top bar with the 🌅/🌌 switch and + button, a progress
 //  header, module quick-toggles, the grouped task stream, and a floating Reset

@@ -1,6 +1,6 @@
 //
 //  ChecklistType.swift
-//  PreFlight
+//  Clearance
 //
 //  The two daily sequences. Stored on `ChecklistItem` as a String-backed,
 //  Codable value so SwiftData can persist it directly.

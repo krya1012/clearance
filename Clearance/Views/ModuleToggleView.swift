@@ -1,6 +1,6 @@
 //
 //  ModuleToggleView.swift
-//  PreFlight
+//  Clearance
 //
 //  Quick-toggle chips for the optional sub-modules (🏋️ Gym, 🏊 Swim). Tapping a
 //  chip immediately injects or removes that module's items from the active list.

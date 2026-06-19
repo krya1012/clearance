@@ -1,6 +1,6 @@
 //
 //  ChecklistViewModel.swift
-//  PreFlight
+//  Clearance
 //
 //  The single source of truth for the dashboard. Built on the modern
 //  Observation framework (`@Observable`) and isolated to the main actor so it
@@ -60,7 +60,7 @@ final class ChecklistViewModel {
     @ObservationIgnored private let modelContext: ModelContext
     @ObservationIgnored private let haptics: HapticsManager
 
-    private static let enabledModulesDefaultsKey = "PreFlight.enabledModules.v1"
+    private static let enabledModulesDefaultsKey = "Clearance.enabledModules.v1"
 
     // MARK: - Init
 
@@ -264,7 +264,7 @@ final class ChecklistViewModel {
         do {
             try modelContext.save()
         } catch {
-            assertionFailure("PreFlight: failed to save model context — \(error)")
+            assertionFailure("Clearance: failed to save model context — \(error)")
         }
     }
 

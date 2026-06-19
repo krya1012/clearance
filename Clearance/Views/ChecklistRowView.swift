@@ -1,6 +1,6 @@
 //
 //  ChecklistRowView.swift
-//  PreFlight
+//  Clearance
 //
 //  A single, tactile checklist row: a large checkbox target on the left and a
 //  clear task title. Completed rows dim and strike through; skipped rows dim

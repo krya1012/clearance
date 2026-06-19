@@ -29,16 +29,25 @@ struct ClearanceApp: App {
     @State private var viewModel: ChecklistViewModel
 
     init() {
+        let container: ModelContainer
         do {
-            let container = try ModelContainer(
+            container = try ModelContainer(
                 for: ChecklistItem.self,
                 configurations: ModelConfiguration(isStoredInMemoryOnly: false)
             )
-            self.modelContainer = container
-            _viewModel = State(initialValue: ChecklistViewModel(modelContext: container.mainContext))
         } catch {
-            fatalError("Clearance: failed to initialise the ModelContainer — \(error)")
+            // The persistent store failed to open — most often an incompatible
+            // store left behind by a previous install whose schema differs.
+            // Rather than crash on the launch screen (which looks exactly like
+            // "the app won't run"), fall back to an in-memory store so the UI
+            // still appears with clean, freshly-seeded content.
+            container = try! ModelContainer(
+                for: ChecklistItem.self,
+                configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            )
         }
+        self.modelContainer = container
+        _viewModel = State(initialValue: ChecklistViewModel(modelContext: container.mainContext))
     }
 
     var body: some Scene {

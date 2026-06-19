@@ -1,6 +1,6 @@
 //
 //  ModuleType.swift
-//  PreFlight
+//  Clearance
 //
 //  Groups a checklist item into a "module". `.core` is always active; the
 //  remaining modules are optional and can be toggled on/off by the user.

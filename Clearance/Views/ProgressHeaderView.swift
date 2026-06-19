@@ -1,6 +1,6 @@
 //
 //  ProgressHeaderView.swift
-//  PreFlight
+//  Clearance
 //
 //  A minimalist, glanceable progress header: the active sequence's name on the
 //  left, a percentage + fraction on the right, and an animated progress bar.

@@ -1,6 +1,6 @@
 //
 //  ChecklistItem.swift
-//  PreFlight
+//  Clearance
 //
 //  The single persisted entity. Adding `phase` and `phaseIndex` allows items
 //  to be grouped into named sub-sections ("Systems Launch", "Refueling", …)
