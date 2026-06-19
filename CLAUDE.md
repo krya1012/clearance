@@ -10,7 +10,7 @@ This is a pure SwiftUI / SwiftData iOS app with no package dependencies and no e
 - **Build/run:** `⌘R` in Xcode — pick an iOS 17+ simulator or a physical iPhone
 - **Build check (no simulator required):**
   ```
-  xcodebuild -project Clearance.xcodeproj -scheme Clearance -destination 'platform=iOS Simulator,name=iPhone 16' build
+  xcodebuild -project Clearance.xcodeproj -scheme Clearance -destination 'platform=iOS Simulator,name=iPhone 17' build
   ```
 - **Target Swift version:** Swift 6 strict concurrency (`SWIFT_VERSION = 6.0`). The build must be **zero-warning** under strict mode.
 - No test target exists yet; the README notes the ViewModel logic is side-effect-light and straightforward to cover with XCTest if one is added.
@@ -26,9 +26,21 @@ Single-screen MVVM app. One `@MainActor @Observable` view model owns all state; 
 
 **Activity gating (the key non-obvious behavior):**
 - `ScheduleStore` persists a recurring weekly plan (`[Weekday: Set<ModuleType>]`) and per-date overrides (`[String: Set<ModuleType>]`) in `UserDefaults`.
-- `ChecklistViewModel` computes `todayActivities` and `tomorrowActivities` from those on init (and on `refresh()`).
+- `ChecklistViewModel` computes `todayActivities` and `tomorrowActivities` from those on init (and on `refresh()`). Activities are intersected with `enabledModules` so disabled modules can never bleed in via saved overrides.
 - Morning items for optional modules are shown when `todayActivities` contains that module (gear-check role).
 - Evening items for optional modules split by `phaseIndex`: `0` = pack-for-tomorrow (gated by `tomorrowActivities`), `>0` = post-session unload (gated by `todayActivities`). This lets one evening both unload today's sport and pack tomorrow's different sport.
+
+**Global module enable/disable:**
+- `enabledModules: Set<ModuleType>` on the VM (persisted via `ScheduleStore`) controls which optional modules (Gym/Swim/Judo) are visible at all.
+- Disabled modules are filtered out of `sections`, `todayActivities`, `tomorrowActivities`, the activity-selector chips, and the schedule editor's weekday grid.
+- Toggled via `toggleModuleEnabled(_:)` from the "Active modules" section in `ScheduleEditorView`.
+- Default is all modules enabled (backwards compatible with existing installs).
+
+**Auto-reset:**
+- `ChecklistViewModel.refresh()` (called on every foreground wake) calls `checkAutoReset()`, which silently clears all tasks if the configured `resetHour` has passed since the last auto-reset.
+- `resetHour: Int` (0–6, default 3 = 3 AM) is persisted in UserDefaults and editable from the "Auto-reset" section in `ScheduleEditorView`.
+- Manual reset ("Reset now") lives in that same section; it calls `resetAll()` with a haptic and dismisses the sheet.
+- `resetAll(silent:)` — pass `silent: true` to skip the haptic (used by auto-reset).
 
 **Seed data versioning:**
 - `SeedData.currentVersion` (an `Int` in `SeedData.swift`) gates seeding via `UserDefaults`. Bump it whenever canonical checklist content changes — the old items are deleted and the fresh set is re-inserted on next launch.
@@ -37,6 +49,9 @@ Single-screen MVVM app. One `@MainActor @Observable` view model owns all state; 
 - `Clearance.seedVersion.v1` — tracks seed version
 - `Clearance.weeklySchedule.v1` — JSON-encoded weekly schedule
 - `Clearance.activityOverrides.v1` — JSON-encoded per-date overrides (pruned to ±1 day)
+- `Clearance.enabledModules.v1` — JSON-encoded set of active optional module rawValues
+- `Clearance.autoResetHour.v1` — Int, hour of day for nightly auto-reset (default 3)
+- `Clearance.lastAutoReset.v1` — Date, timestamp of last auto-reset (default `.distantPast`)
 
 ## Design constraints
 
