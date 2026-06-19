@@ -12,7 +12,7 @@ import SwiftData
 
 enum SeedData {
 
-    private static let currentVersion = 4
+    private static let currentVersion = 5
     private static let versionKey = "Clearance.seedVersion.v1"
 
     // MARK: - Entry point
@@ -138,6 +138,23 @@ enum SeedData {
         )
 
         // ─────────────────────────────────────────
+        // 🥋  MORNING — Judo module (injected when Judo is ON)
+        // ─────────────────────────────────────────
+
+        add(
+            [
+                "Status Check: Confirm the Judo 'Dojo-Pack' was packed last night",
+                "Gi Check: Confirm clean gi (jacket + trousers) and belt are inside",
+                "Footwear: Confirm flip-flops / zori for off-mat walking are packed",
+                "Hydration: Fill water bottle with cold water and stow it",
+                "Access: Confirm club membership / dojo access card is in the bag",
+                "Grab the Judo 'Dojo-Pack' on your way out the door",
+            ],
+            checklist: .morning, module: .judo,
+            phase: "Final Gear Check — Before Exit", phaseIndex: 0
+        )
+
+        // ─────────────────────────────────────────
         // 🌌  EVENING — Core
         // ─────────────────────────────────────────
 
@@ -233,6 +250,36 @@ enum SeedData {
                 "Dry-Bag Airing: Turn the empty waterproof dry-bag inside out or leave it completely open to prevent mold and mildew growth",
             ],
             checklist: .evening, module: .swim,
+            phase: "Post-Workout Unload & Reset — Evening Return", phaseIndex: 1
+        )
+
+        // ─────────────────────────────────────────
+        // 🥋  EVENING — Judo module
+        // ─────────────────────────────────────────
+
+        add(
+            [
+                "Gi: Pack a clean, dry gi — jacket and trousers",
+                "Belt: Pack your belt (rolled, not knotted)",
+                "Off-Mat Footwear: Pack flip-flops / zori for walking off the mat",
+                "Hygiene: Pack a small towel, body wash, and shampoo for the post-session shower",
+                "Body Care: Pack finger/toe tape and any joint supports (knee, ankle)",
+                "Hydration: Prep water bottle with cold water",
+                "Access: Place club membership / dojo access card into the bag's secure pocket",
+            ],
+            checklist: .evening, module: .judo,
+            phase: "Collect & Pack — Evening Before", phaseIndex: 0
+        )
+
+        add(
+            [
+                "Gi Strip: Remove the sweaty gi → hang to air out or drop into the laundry",
+                "Belt Care: Air out the belt → hang it up (traditionally never washed)",
+                "Footwear Airing: Take out flip-flops → wipe down and leave to dry",
+                "Towel Extraction: Remove the used towel → place in laundry",
+                "Hydration Reset: Empty and rinse the water bottle to prevent odors",
+            ],
+            checklist: .evening, module: .judo,
             phase: "Post-Workout Unload & Reset — Evening Return", phaseIndex: 1
         )
 

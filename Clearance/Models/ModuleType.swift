@@ -12,6 +12,7 @@ enum ModuleType: String, Codable, CaseIterable, Identifiable, Sendable {
     case core
     case gym
     case swim
+    case judo
 
     var id: String { rawValue }
 
@@ -24,6 +25,7 @@ enum ModuleType: String, Codable, CaseIterable, Identifiable, Sendable {
         case .core: 0
         case .gym: 1
         case .swim: 2
+        case .judo: 3
         }
     }
 
@@ -32,6 +34,7 @@ enum ModuleType: String, Codable, CaseIterable, Identifiable, Sendable {
         case .core: "Core"
         case .gym: "Gym"
         case .swim: "Swim"
+        case .judo: "Judo"
         }
     }
 
@@ -40,6 +43,7 @@ enum ModuleType: String, Codable, CaseIterable, Identifiable, Sendable {
         case .core: "🎯"
         case .gym: "🏋️"
         case .swim: "🏊"
+        case .judo: "🥋"
         }
     }
 
@@ -48,6 +52,7 @@ enum ModuleType: String, Codable, CaseIterable, Identifiable, Sendable {
         case .core: "target"
         case .gym: "dumbbell.fill"
         case .swim: "figure.pool.swim"
+        case .judo: "figure.martial.arts"
         }
     }
 
