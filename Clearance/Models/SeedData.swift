@@ -12,7 +12,7 @@ import SwiftData
 
 enum SeedData {
 
-    private static let currentVersion = 7
+    private static let currentVersion = 8
     private static let versionKey = "Clearance.seedVersion.v1"
 
     // MARK: - Entry point
@@ -22,23 +22,48 @@ enum SeedData {
         let storedVersion = UserDefaults.standard.integer(forKey: versionKey)
         guard storedVersion < currentVersion else { return }
 
-        // Clear stale UserDefaults module keys so old UUIDs don't survive the re-seed.
-        ScheduleStore().clearModuleKeys()
+        let store = ScheduleStore()
 
-        // Delete all existing items and modules before re-seeding.
-        let existingItems = (try? context.fetch(FetchDescriptor<ChecklistItem>())) ?? []
-        existingItems.forEach { context.delete($0) }
+        // Index existing modules by name so user-created modules survive.
         let existingModules = (try? context.fetch(FetchDescriptor<ActivityModule>())) ?? []
-        existingModules.forEach { context.delete($0) }
+        let existingByName = Dictionary(uniqueKeysWithValues: existingModules.map { ($0.name, $0) })
 
-        // Insert modules first so their IDs are stable.
-        let modules = defaultModules()
-        modules.forEach { context.insert($0) }
+        // Track which module UUIDs already have at least one task.
+        let existingItems = (try? context.fetch(FetchDescriptor<ChecklistItem>())) ?? []
+        let modulesWithItems = Set(existingItems.map { $0.associatedModule })
+
+        // For each seed module: reuse existing (same name) or insert new.
+        var resolvedModules: [ActivityModule] = []
+        var newOptionalIDs: Set<UUID> = []
+
+        for seedModule in defaultModules() {
+            if let existing = existingByName[seedModule.name] {
+                // Keep existing UUID; sync sortOrder and emoji to latest seed values.
+                existing.sortOrder = seedModule.sortOrder
+                existing.emoji = seedModule.emoji
+                resolvedModules.append(existing)
+            } else {
+                context.insert(seedModule)
+                resolvedModules.append(seedModule)
+                if !seedModule.isCore { newOptionalIDs.insert(seedModule.id) }
+            }
+        }
         try? context.save()
 
-        // Insert tasks referencing module IDs.
-        defaultItems(modules: modules).forEach { context.insert($0) }
+        // Insert seed items only for modules that currently have no items.
+        for item in defaultItems(modules: resolvedModules)
+            where !modulesWithItems.contains(item.associatedModule) {
+            context.insert(item)
+        }
         try? context.save()
+
+        // Enable any newly-inserted optional modules without touching existing prefs.
+        if !newOptionalIDs.isEmpty {
+            let current = store.loadEnabledModuleIDs()
+                ?? Set(resolvedModules.filter { !$0.isCore }.map { $0.id })
+            store.saveEnabledModuleIDs(current.union(newOptionalIDs))
+        }
+
         UserDefaults.standard.set(currentVersion, forKey: versionKey)
     }
 
@@ -46,36 +71,41 @@ enum SeedData {
 
     static func defaultModules() -> [ActivityModule] {
         [
-            ActivityModule(name: "Core",  emoji: "🎯", sortOrder: 0, isCore: true),
-            ActivityModule(name: "Gym",   emoji: "🏋️", sortOrder: 1),
-            ActivityModule(name: "Swim",  emoji: "🏊", sortOrder: 2),
+            ActivityModule(name: "Core",    emoji: "🎯", sortOrder: 0, isCore: true),
+            ActivityModule(name: "Gym",     emoji: "🏋️", sortOrder: 1),
+            ActivityModule(name: "Swim",    emoji: "🏊", sortOrder: 2),
             ActivityModule(name: "Judo",    emoji: "🥋", sortOrder: 3),
             ActivityModule(name: "Cycling", emoji: "🚴", sortOrder: 4),
             ActivityModule(name: "Running", emoji: "🏃", sortOrder: 5),
+            ActivityModule(name: "Yoga",    emoji: "🧘", sortOrder: 6),
         ]
     }
 
     // MARK: - Canonical task content
 
+    static func defaultItems(for module: ActivityModule, allModules: [ActivityModule]) -> [ChecklistItem] {
+        defaultItems(modules: allModules).filter { $0.associatedModule == module.id.uuidString }
+    }
+
     static func defaultItems(modules: [ActivityModule]) -> [ChecklistItem] {
-        guard
-            let core    = modules.first(where: \.isCore),
-            let gym     = modules.first(where: { $0.name == "Gym" }),
-            let swim    = modules.first(where: { $0.name == "Swim" }),
-            let judo    = modules.first(where: { $0.name == "Judo" }),
-            let cycling = modules.first(where: { $0.name == "Cycling" }),
-            let running = modules.first(where: { $0.name == "Running" })
-        else { return [] }
+        guard let core = modules.first(where: \.isCore) else { return [] }
+        let gym     = modules.first(where: { $0.name == "Gym" })
+        let swim    = modules.first(where: { $0.name == "Swim" })
+        let judo    = modules.first(where: { $0.name == "Judo" })
+        let cycling = modules.first(where: { $0.name == "Cycling" })
+        let running = modules.first(where: { $0.name == "Running" })
+        let yoga    = modules.first(where: { $0.name == "Yoga" })
 
         var items: [ChecklistItem] = []
 
         func add(
             _ titles: [String],
             checklist: ChecklistType,
-            module: ActivityModule,
+            module: ActivityModule?,
             phase: String,
             phaseIndex: Int
         ) {
+            guard let module else { return }
             for (index, title) in titles.enumerated() {
                 items.append(ChecklistItem(
                     title: title,
@@ -410,6 +440,49 @@ enum SeedData {
             ],
             checklist: .evening, module: running,
             phase: "Post-Run Unload & Reset — Evening Return", phaseIndex: 1
+        )
+
+        // ─────────────────────────────────────────
+        // 🧘  MORNING — Yoga
+        // ─────────────────────────────────────────
+
+        add(
+            [
+                "Status Check: Confirm the Yoga 'Flow-Pack' was packed last night",
+                "Mat: Confirm yoga mat is rolled and in the bag",
+                "Props: Confirm yoga block and strap are packed",
+                "Apparel: Confirm comfortable, breathable clothes are in the bag",
+                "Hydration: Fill water bottle with cool water and stow it",
+                "Grab the Yoga 'Flow-Pack' on your way out the door",
+            ],
+            checklist: .morning, module: yoga,
+            phase: "Final Gear Check — Before Exit", phaseIndex: 0
+        )
+
+        // ─────────────────────────────────────────
+        // 🧘  EVENING — Yoga
+        // ─────────────────────────────────────────
+
+        add(
+            [
+                "Mat: Roll up yoga mat and place in bag",
+                "Props: Pack yoga block and strap",
+                "Apparel: Pack comfortable, moisture-wicking top and leggings / shorts",
+                "Hydration: Prep water bottle with cool water",
+            ],
+            checklist: .evening, module: yoga,
+            phase: "Collect & Pack — Evening Before", phaseIndex: 0
+        )
+
+        add(
+            [
+                "Mat: Wipe down yoga mat with a damp cloth; unroll and leave to air dry",
+                "Props: Wipe block and strap; store on shelf",
+                "Apparel: Remove sweaty clothes → drop into laundry bin",
+                "Hydration: Empty and rinse water bottle",
+            ],
+            checklist: .evening, module: yoga,
+            phase: "Post-Session Unload & Reset — Evening Return", phaseIndex: 1
         )
 
         return items

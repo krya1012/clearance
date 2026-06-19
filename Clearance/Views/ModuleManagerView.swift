@@ -17,6 +17,8 @@ struct ModuleManagerView: View {
     @State private var moduleToEdit: ActivityModule? = nil
     @State private var moduleToDelete: ActivityModule? = nil
     @State private var showDeleteConfirm = false
+    @State private var moduleToRestore: ActivityModule? = nil
+    @State private var showRestoreConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -29,6 +31,17 @@ struct ModuleManagerView: View {
                             Text("Core")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            if viewModel.hasDefaultTasks(for: core) {
+                                Button {
+                                    moduleToRestore = core
+                                    showRestoreConfirm = true
+                                } label: {
+                                    Label("Restore", systemImage: "arrow.counterclockwise")
+                                }
+                                .tint(.blue)
+                            }
                         }
                     } header: {
                         Text("Fixed")
@@ -50,6 +63,17 @@ struct ModuleManagerView: View {
                             }
                         }
                         .buttonStyle(.plain)
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            if viewModel.hasDefaultTasks(for: module) {
+                                Button {
+                                    moduleToRestore = module
+                                    showRestoreConfirm = true
+                                } label: {
+                                    Label("Restore", systemImage: "arrow.counterclockwise")
+                                }
+                                .tint(.blue)
+                            }
+                        }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 moduleToDelete = module
@@ -93,13 +117,23 @@ struct ModuleManagerView: View {
                 titleVisibility: .visible
             ) {
                 Button("Delete", role: .destructive) {
-                    if let mod = moduleToDelete {
-                        viewModel.deleteModule(mod)
-                    }
+                    if let mod = moduleToDelete { viewModel.deleteModule(mod) }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("All tasks for this module will be permanently removed.")
+            }
+            .confirmationDialog(
+                "Restore \(moduleToRestore?.name ?? "module") to defaults?",
+                isPresented: $showRestoreConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Restore default tasks", role: .destructive) {
+                    if let mod = moduleToRestore { viewModel.restoreDefaultTasks(for: mod) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This replaces all current tasks for this module with the original defaults. Any tasks you added will be removed.")
             }
         }
     }

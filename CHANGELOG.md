@@ -7,6 +7,13 @@ All notable changes to Clearance are recorded here.
 ## [Unreleased]
 
 ### Added
+- **Yoga (🧘) module** with morning gear-check (Flow-Pack) and evening pack/unload tasks
+  (Collect & Pack and Post-Session Unload & Reset phases).
+- **Additive seed migration** — `seedIfNeeded` now matches seed modules by name against
+  existing records instead of wiping everything. Existing modules keep their UUIDs;
+  seed tasks are inserted only when a module has zero items. Newly seeded optional modules
+  are added to `enabledModules` without clearing schedule or override preferences. Users
+  who created a module manually before it was promoted to the seed are handled gracefully.
 - **Dynamic sport modules** — Gym, Swim, Judo, Cycling, Running are now SwiftData
   `ActivityModule` objects instead of a compile-time enum. Users can add, rename, change
   emoji, or delete any optional module via Schedule → Manage modules.

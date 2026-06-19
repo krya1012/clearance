@@ -327,6 +327,21 @@ final class ChecklistViewModel {
         reloadModules()
     }
 
+    func hasDefaultTasks(for module: ActivityModule) -> Bool {
+        !SeedData.defaultItems(for: module, allModules: allModules).isEmpty
+    }
+
+    func restoreDefaultTasks(for module: ActivityModule) {
+        allItems
+            .filter { $0.associatedModule == module.id.uuidString }
+            .forEach { modelContext.delete($0) }
+        SeedData.defaultItems(for: module, allModules: allModules)
+            .forEach { modelContext.insert($0) }
+        save()
+        reloadItems()
+        haptics.reset()
+    }
+
     func deleteModule(_ module: ActivityModule) {
         guard module.isOptional else { return }
         enabledModuleIDs.remove(module.id)
