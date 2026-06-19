@@ -12,6 +12,7 @@ import SwiftUI
 
 struct ActivitySelectorView: View {
     let title: String
+    var modules: [ModuleType] = ModuleType.optionalModules
     let selected: Set<ModuleType>
     let palette: ChecklistPalette
     let onToggle: (ModuleType) -> Void
@@ -24,7 +25,7 @@ struct ActivitySelectorView: View {
                 .foregroundStyle(palette.secondaryText)
 
             HStack(spacing: 8) {
-                ForEach(ModuleType.optionalModules) { module in
+                ForEach(modules) { module in
                     ActivityChip(
                         module: module,
                         isOn: selected.contains(module),

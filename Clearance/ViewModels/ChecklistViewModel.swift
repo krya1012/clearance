@@ -64,6 +64,9 @@ final class ChecklistViewModel {
     /// Activities for tomorrow (drives evening packing).
     private(set) var tomorrowActivities: Set<ModuleType> = []
 
+    /// Optional modules the user has marked as active (relevant). Core is always on.
+    private(set) var enabledModules: Set<ModuleType> = []
+
     // MARK: - Dependencies
 
     @ObservationIgnored private let modelContext: ModelContext
@@ -80,6 +83,7 @@ final class ChecklistViewModel {
         self.scheduleStore = store
         self.weeklySchedule = store.loadSchedule()
         self.overrides = store.loadOverrides()
+        self.enabledModules = store.loadEnabledModules()
         SeedData.seedIfNeeded(in: modelContext)
         reloadItems()
         recomputeActivities()
@@ -106,6 +110,9 @@ final class ChecklistViewModel {
     var sections: [ChecklistSection] {
         let visible = allItems.filter { item in
             guard item.associatedChecklist == selectedChecklist else { return false }
+            if item.associatedModule.isOptional && !enabledModules.contains(item.associatedModule) {
+                return false
+            }
             switch role(of: item) {
             case .anytime:   return true
             case .gearCheck: return todayActivities.contains(item.associatedModule)
@@ -186,8 +193,10 @@ final class ChecklistViewModel {
     }
 
     private func activities(on date: Date) -> Set<ModuleType> {
-        if let override = overrides[scheduleStore.dateKey(for: date)] { return override }
-        return weeklySchedule[Weekday.of(date)] ?? []
+        let raw: Set<ModuleType>
+        if let override = overrides[scheduleStore.dateKey(for: date)] { raw = override }
+        else { raw = weeklySchedule[Weekday.of(date)] ?? [] }
+        return raw.intersection(enabledModules)
     }
 
     func toggleTodayActivity(_ module: ModuleType) {
@@ -220,6 +229,17 @@ final class ChecklistViewModel {
             .compactMap { cal.date(byAdding: .day, value: $0, to: now) }
             .map { scheduleStore.dateKey(for: $0) })
         overrides = overrides.filter { keep.contains($0.key) }
+    }
+
+    // MARK: - Enabled modules
+
+    func toggleModuleEnabled(_ module: ModuleType) {
+        guard module.isOptional else { return }
+        if enabledModules.contains(module) { enabledModules.remove(module) }
+        else { enabledModules.insert(module) }
+        scheduleStore.saveEnabledModules(enabledModules)
+        haptics.moduleToggled()
+        recomputeActivities()
     }
 
     // MARK: - Weekly schedule

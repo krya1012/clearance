@@ -18,29 +18,58 @@ struct ScheduleEditorView: View {
         NavigationStack {
             Form {
                 Section {
-                    ForEach(Weekday.displayOrder) { day in
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(day.label)
-                                .font(.subheadline.weight(.semibold))
-
-                            HStack(spacing: 8) {
-                                ForEach(ModuleType.optionalModules) { module in
-                                    ScheduleChip(
-                                        module: module,
-                                        isOn: viewModel.scheduleActivities(for: day).contains(module)
-                                    ) {
-                                        viewModel.toggleScheduleActivity(module, on: day)
-                                    }
+                    ForEach(ModuleType.optionalModules) { module in
+                        Button {
+                            viewModel.toggleModuleEnabled(module)
+                        } label: {
+                            HStack {
+                                Text(module.emoji + " " + module.title)
+                                    .foregroundStyle(Color.primary)
+                                Spacer()
+                                if viewModel.enabledModules.contains(module) {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(Color.accentColor)
+                                        .fontWeight(.semibold)
                                 }
-                                Spacer(minLength: 0)
                             }
                         }
-                        .padding(.vertical, 4)
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(module.title)
+                        .accessibilityValue(viewModel.enabledModules.contains(module) ? "Active" : "Hidden")
+                        .accessibilityAddTraits(.isButton)
                     }
                 } header: {
-                    Text("Weekly plan")
+                    Text("Active modules")
                 } footer: {
-                    Text("Mornings grab that day's gear. Evenings unpack what you did today and pack for tomorrow's activity. You can still override any single day from the dashboard.")
+                    Text("Hide modules you don't use. They won't appear in the activity selector or the weekly plan below.")
+                }
+
+                if !viewModel.enabledModules.isEmpty {
+                    Section {
+                        ForEach(Weekday.displayOrder) { day in
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(day.label)
+                                    .font(.subheadline.weight(.semibold))
+
+                                HStack(spacing: 8) {
+                                    ForEach(ModuleType.optionalModules.filter { viewModel.enabledModules.contains($0) }) { module in
+                                        ScheduleChip(
+                                            module: module,
+                                            isOn: viewModel.scheduleActivities(for: day).contains(module)
+                                        ) {
+                                            viewModel.toggleScheduleActivity(module, on: day)
+                                        }
+                                    }
+                                    Spacer(minLength: 0)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    } header: {
+                        Text("Weekly plan")
+                    } footer: {
+                        Text("Mornings grab that day's gear. Evenings unpack what you did today and pack for tomorrow's activity. You can still override any single day from the dashboard.")
+                    }
                 }
             }
             .navigationTitle("Schedule")

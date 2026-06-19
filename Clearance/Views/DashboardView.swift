@@ -120,10 +120,15 @@ struct DashboardView: View {
 
     /// Morning shows a single "Today" picker; evening splits into what you did
     /// today (drives unpacking) and what you're doing tomorrow (drives packing).
+    private var enabledModulesSorted: [ModuleType] {
+        ModuleType.optionalModules.filter { viewModel.enabledModules.contains($0) }
+    }
+
     @ViewBuilder private var activitySelectors: some View {
         if viewModel.selectedChecklist == .morning {
             ActivitySelectorView(
                 title: "Today",
+                modules: enabledModulesSorted,
                 selected: viewModel.todayActivities,
                 palette: palette
             ) { viewModel.toggleTodayActivity($0) }
@@ -131,12 +136,14 @@ struct DashboardView: View {
             VStack(alignment: .leading, spacing: 12) {
                 ActivitySelectorView(
                     title: "Done today",
+                    modules: enabledModulesSorted,
                     selected: viewModel.todayActivities,
                     palette: palette
                 ) { viewModel.toggleTodayActivity($0) }
 
                 ActivitySelectorView(
                     title: "Packing for tomorrow",
+                    modules: enabledModulesSorted,
                     selected: viewModel.tomorrowActivities,
                     palette: palette
                 ) { viewModel.toggleTomorrowActivity($0) }

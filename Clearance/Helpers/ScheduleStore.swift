@@ -17,6 +17,7 @@ final class ScheduleStore {
     private let calendar: Calendar
     private let scheduleKey = "Clearance.weeklySchedule.v1"
     private let overridesKey = "Clearance.activityOverrides.v1"
+    private let enabledModulesKey = "Clearance.enabledModules.v1"
 
     init(defaults: UserDefaults = .standard, calendar: Calendar = .current) {
         self.defaults = defaults
@@ -70,6 +71,23 @@ final class ScheduleStore {
             defaults.set(data, forKey: overridesKey)
         }
     }
+
+    // MARK: - Enabled modules
+
+    func loadEnabledModules() -> Set<ModuleType> {
+        guard let data = defaults.data(forKey: enabledModulesKey),
+              let raw = try? JSONDecoder().decode([String].self, from: data)
+        else { return Set(ModuleType.optionalModules) }
+        return Set(raw.compactMap(ModuleType.init(rawValue:)).filter(\.isOptional))
+    }
+
+    func saveEnabledModules(_ modules: Set<ModuleType>) {
+        if let data = try? JSONEncoder().encode(modules.map(\.rawValue)) {
+            defaults.set(data, forKey: enabledModulesKey)
+        }
+    }
+
+    // MARK: - Defaults
 
     /// A friendly starting plan that matches a common routine; fully editable.
     static var defaultSchedule: [Weekday: Set<ModuleType>] {
