@@ -22,6 +22,9 @@ enum SeedData {
         let storedVersion = UserDefaults.standard.integer(forKey: versionKey)
         guard storedVersion < currentVersion else { return }
 
+        // Clear stale UserDefaults module keys so old UUIDs don't survive the re-seed.
+        ScheduleStore().clearModuleKeys()
+
         // Delete all existing items and modules before re-seeding.
         let existingItems = (try? context.fetch(FetchDescriptor<ChecklistItem>())) ?? []
         existingItems.forEach { context.delete($0) }

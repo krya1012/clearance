@@ -95,11 +95,16 @@ final class ChecklistViewModel {
         SeedData.seedIfNeeded(in: modelContext)
         reloadModules()
         reloadItems()
-        // First launch: enable all optional modules
+        // Initialise enabled modules, guarding against stale UUIDs from a prior seed.
+        let optionalIDs = Set(allModules.filter(\.isOptional).map(\.id))
         if let saved = store.loadEnabledModuleIDs() {
-            self.enabledModuleIDs = saved
+            let validIDs = saved.intersection(optionalIDs)
+            // If every saved ID is stale (e.g. after a re-seed created new UUIDs),
+            // fall back to all optional modules enabled.
+            self.enabledModuleIDs = (validIDs.isEmpty && !optionalIDs.isEmpty) ? optionalIDs : validIDs
+            store.saveEnabledModuleIDs(self.enabledModuleIDs)
         } else {
-            self.enabledModuleIDs = Set(allModules.filter(\.isOptional).map(\.id))
+            self.enabledModuleIDs = optionalIDs
             store.saveEnabledModuleIDs(self.enabledModuleIDs)
         }
         recomputeActivities()
@@ -389,6 +394,22 @@ final class ChecklistViewModel {
         modelContext.delete(item)
         save()
         reloadItems()
+    }
+
+    func moveItems(in phase: ChecklistPhase, from source: IndexSet, to destination: Int) {
+        var sorted = phase.items
+        sorted.move(fromOffsets: source, toOffset: destination)
+        for (idx, item) in sorted.enumerated() { item.orderIndex = idx }
+        save()
+        reloadItems()
+    }
+
+    func moveModule(from source: IndexSet, to destination: Int) {
+        var mutable = optionalModules
+        mutable.move(fromOffsets: source, toOffset: destination)
+        for (idx, module) in mutable.enumerated() { module.sortOrder = idx + 1 }
+        save()
+        reloadModules()
     }
 
     // MARK: - Toggle / skip / reset

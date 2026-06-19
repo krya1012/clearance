@@ -3,8 +3,8 @@
 //  Clearance
 //
 //  Edits the recurring weekly plan: for each weekday, which activities
-//  (Gym/Swim/Judo) you do. The dashboard derives "today" and "tomorrow" from
-//  this plan, and you can still override an individual day from the dashboard.
+//  (Gym/Swim/Judo/Cycling/Running) you do. The weekly plan is shown as a
+//  compact day × module grid so all days and modules are visible at once.
 //
 
 import SwiftData
@@ -25,14 +25,13 @@ struct ScheduleEditorView: View {
                             viewModel.toggleModuleEnabled(module)
                         } label: {
                             HStack {
+                                Image(systemName: viewModel.enabledModuleIDs.contains(module.id)
+                                      ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(viewModel.enabledModuleIDs.contains(module.id)
+                                                     ? Color.accentColor : Color.secondary.opacity(0.4))
                                 Text(module.label)
                                     .foregroundStyle(Color.primary)
                                 Spacer()
-                                if viewModel.enabledModuleIDs.contains(module.id) {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(Color.accentColor)
-                                        .fontWeight(.semibold)
-                                }
                             }
                         }
                         .buttonStyle(.plain)
@@ -40,6 +39,7 @@ struct ScheduleEditorView: View {
                         .accessibilityValue(viewModel.enabledModuleIDs.contains(module.id) ? "Active" : "Hidden")
                         .accessibilityAddTraits(.isButton)
                     }
+                    .onMove { viewModel.moveModule(from: $0, to: $1) }
 
                     Button {
                         showModuleManager = true
@@ -59,6 +59,7 @@ struct ScheduleEditorView: View {
                 } footer: {
                     Text("Hide modules you don't use. Tap \"Manage modules\" to add, rename, or delete sport modules.")
                 }
+                .environment(\.editMode, .constant(.active))
 
                 Section {
                     Picker("Reset time", selection: $viewModel.resetHour) {
@@ -92,25 +93,8 @@ struct ScheduleEditorView: View {
 
                 if !viewModel.enabledModules.isEmpty {
                     Section {
-                        ForEach(Weekday.displayOrder) { day in
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text(day.label)
-                                    .font(.subheadline.weight(.semibold))
-
-                                HStack(spacing: 8) {
-                                    ForEach(viewModel.enabledModules) { module in
-                                        ScheduleChip(
-                                            module: module,
-                                            isOn: viewModel.scheduleActivities(for: day).contains(module.id)
-                                        ) {
-                                            viewModel.toggleScheduleActivity(module, on: day)
-                                        }
-                                    }
-                                    Spacer(minLength: 0)
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
+                        WeeklyPlanGrid(viewModel: viewModel)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                     } header: {
                         Text("Weekly plan")
                     } footer: {
@@ -133,35 +117,72 @@ struct ScheduleEditorView: View {
     }
 }
 
-private func hourLabel(_ hour: Int) -> String {
-    hour == 0 ? "Midnight (12 AM)" : "\(hour) AM"
-}
+// MARK: - Weekly plan grid
 
-private struct ScheduleChip: View {
-    let module: ActivityModule
-    let isOn: Bool
-    let action: () -> Void
+private struct WeeklyPlanGrid: View {
+    let viewModel: ChecklistViewModel
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Text(module.emoji)
-                Text(module.name)
-                    .font(.subheadline.weight(.semibold))
+        VStack(spacing: 0) {
+            headerRow
+            Divider()
+            ForEach(Weekday.displayOrder) { day in
+                dayRow(day)
+                if day.id != Weekday.displayOrder.last?.id {
+                    Divider().opacity(0.35)
+                }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .foregroundStyle(isOn ? Color.white : Color.primary)
-            .background(
-                Capsule().fill(isOn ? Color.accentColor : Color.gray.opacity(0.18))
-            )
         }
-        .buttonStyle(.plain)
-        .contentShape(Capsule())
-        .accessibilityLabel(module.name)
-        .accessibilityValue(isOn ? "Scheduled" : "Not scheduled")
-        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
+        .padding(.vertical, 4)
     }
+
+    private var headerRow: some View {
+        HStack(spacing: 0) {
+            Text("")
+                .frame(width: 48)
+            ForEach(viewModel.enabledModules) { module in
+                Text(module.emoji)
+                    .font(.body)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel(module.name)
+            }
+        }
+        .padding(.vertical, 8)
+        .foregroundStyle(.secondary)
+    }
+
+    private func dayRow(_ day: Weekday) -> some View {
+        HStack(spacing: 0) {
+            Text(day.short)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 48, alignment: .leading)
+
+            ForEach(viewModel.enabledModules) { module in
+                let isOn = viewModel.scheduleActivities(for: day).contains(module.id)
+                Button {
+                    viewModel.toggleScheduleActivity(module, on: day)
+                } label: {
+                    Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 22))
+                        .foregroundStyle(isOn ? Color.accentColor : Color.secondary.opacity(0.35))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(module.name) on \(day.label)")
+                .accessibilityValue(isOn ? "Scheduled" : "Not scheduled")
+                .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
+            }
+        }
+    }
+}
+
+// MARK: - Helpers
+
+private func hourLabel(_ hour: Int) -> String {
+    hour == 0 ? "Midnight (12 AM)" : "\(hour) AM"
 }
 
 #Preview("Schedule Editor") {

@@ -2,8 +2,8 @@
 //  DashboardView.swift
 //  Clearance
 //
-//  The single screen: a top bar with the 🌅/🌌 switch and + button, a progress
-//  header, module quick-toggles, and the grouped task stream.
+//  The single screen: a top bar with the 🌅/🌌 switch, schedule, reorder, and
+//  add buttons; a progress header; module quick-toggles; and the task stream.
 //
 
 import SwiftData
@@ -38,9 +38,6 @@ struct DashboardView: View {
                 )
                 .padding(.horizontal, Theme.Layout.screenPadding)
 
-                activitySelectors
-                    .padding(.horizontal, Theme.Layout.screenPadding)
-
                 ChecklistView(
                     viewModel: viewModel,
                     palette: palette,
@@ -57,11 +54,9 @@ struct DashboardView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active { viewModel.refresh() }
         }
-        // Add / edit sheet — one sheet handles both modes via EditorMode.id
         .sheet(item: $editorMode) { mode in
             ItemEditorView(viewModel: viewModel, mode: mode)
         }
-        // Weekly schedule editor
         .sheet(isPresented: $showSchedule) {
             ScheduleEditorView(viewModel: viewModel)
         }
@@ -97,34 +92,6 @@ struct DashboardView: View {
             .accessibilityLabel("Add new task")
         }
         .padding(.horizontal, Theme.Layout.screenPadding)
-    }
-
-    @ViewBuilder private var activitySelectors: some View {
-        let modules = viewModel.enabledModules
-        if viewModel.selectedChecklist == .morning {
-            ActivitySelectorView(
-                title: "Today",
-                modules: modules,
-                selected: viewModel.todayActivityIDs,
-                palette: palette
-            ) { viewModel.toggleTodayActivity($0) }
-        } else {
-            VStack(alignment: .leading, spacing: 12) {
-                ActivitySelectorView(
-                    title: "Done today",
-                    modules: modules,
-                    selected: viewModel.todayActivityIDs,
-                    palette: palette
-                ) { viewModel.toggleTodayActivity($0) }
-
-                ActivitySelectorView(
-                    title: "Packing for tomorrow",
-                    modules: modules,
-                    selected: viewModel.tomorrowActivityIDs,
-                    palette: palette
-                ) { viewModel.toggleTomorrowActivity($0) }
-            }
-        }
     }
 
 }

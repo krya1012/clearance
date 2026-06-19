@@ -112,4 +112,12 @@ final class ScheduleStore {
     func saveLastAutoReset(_ date: Date) {
         defaults.set(date, forKey: lastAutoResetKey)
     }
+
+    /// Removes all module-related v2 keys. Called when seed data re-runs so stale
+    /// UUIDs from the previous seed never survive into the new module set.
+    func clearModuleKeys() {
+        defaults.removeObject(forKey: scheduleKey)
+        defaults.removeObject(forKey: overridesKey)
+        defaults.removeObject(forKey: enabledModulesKey)
+    }
 }

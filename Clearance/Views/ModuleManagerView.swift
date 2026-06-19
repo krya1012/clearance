@@ -62,7 +62,7 @@ struct ModuleManagerView: View {
                 } header: {
                     Text("Optional modules")
                 } footer: {
-                    Text("Swipe left to delete. Deleting a module permanently removes all its tasks.")
+                    Text("Tap a module to rename it. Swipe left to delete. Drag to reorder.")
                 }
             }
             .navigationTitle("Modules")

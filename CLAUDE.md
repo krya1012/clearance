@@ -35,10 +35,17 @@ Single-screen MVVM app. One `@MainActor @Observable` view model owns all state; 
 - `isCore: Bool` marks the one permanent Core module — it cannot be renamed or deleted.
 - `ChecklistItem.associatedModule` stores `activityModule.id.uuidString` (plain `String` column in SQLite).
 - `enabledModuleIDs: Set<UUID>` on the VM (persisted via `ScheduleStore`) controls which optional modules are visible at all.
-- Disabled modules are filtered out of `sections`, `todayActivityIDs`, `tomorrowActivityIDs`, the activity-selector chips, and the schedule editor's weekday grid.
+- Disabled modules are filtered out of `sections`, `todayActivityIDs`, `tomorrowActivityIDs`, the activity-selector rows, and the schedule editor's weekday grid.
 - Toggled via `toggleModuleEnabled(_:)` from the "Active modules" section in `ScheduleEditorView`.
+- Reordered via `moveModule(from:to:)` — drag handles are always visible in the "Active modules" section of `ScheduleEditorView` (`.environment(\.editMode, .constant(.active))` scoped to that section).
 - Deleting a module (`deleteModule(_:)`) also deletes all its `ChecklistItem` records.
 - Default seed: Core / Gym / Swim / Judo / Cycling / Running (all optional modules enabled on first launch).
+
+**Dashboard layout:**
+- `DashboardView` top bar: checklist picker | calendar (schedule sheet) | + (add task). No edit/reorder button.
+- Activity selector rows (today's / tomorrow's activities) live **inside** `ChecklistView`'s `List` as the first section(s), so they scroll with the task content rather than being fixed above it.
+- `ChecklistView` has no `editMode` binding; task rows are always in normal (non-edit) mode.
+- Phase sub-headers within a module section are wrapped in a single-item `ForEach` with `.moveDisabled(true)` to prevent SwiftUI's drag-index tracker from conflating them with adjacent draggable task rows.
 
 **Auto-reset:**
 - `ChecklistViewModel.refresh()` (called on every foreground wake) calls `checkAutoReset()`, which silently clears all tasks if the configured `resetHour` has passed since the last auto-reset.
