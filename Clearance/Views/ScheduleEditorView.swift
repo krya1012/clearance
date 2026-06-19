@@ -14,20 +14,21 @@ struct ScheduleEditorView: View {
     @Bindable var viewModel: ChecklistViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showResetConfirmation = false
+    @State private var showModuleManager = false
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    ForEach(ModuleType.optionalModules) { module in
+                    ForEach(viewModel.optionalModules) { module in
                         Button {
                             viewModel.toggleModuleEnabled(module)
                         } label: {
                             HStack {
-                                Text(module.emoji + " " + module.title)
+                                Text(module.label)
                                     .foregroundStyle(Color.primary)
                                 Spacer()
-                                if viewModel.enabledModules.contains(module) {
+                                if viewModel.enabledModuleIDs.contains(module.id) {
                                     Image(systemName: "checkmark")
                                         .foregroundStyle(Color.accentColor)
                                         .fontWeight(.semibold)
@@ -35,14 +36,28 @@ struct ScheduleEditorView: View {
                             }
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(module.title)
-                        .accessibilityValue(viewModel.enabledModules.contains(module) ? "Active" : "Hidden")
+                        .accessibilityLabel(module.name)
+                        .accessibilityValue(viewModel.enabledModuleIDs.contains(module.id) ? "Active" : "Hidden")
                         .accessibilityAddTraits(.isButton)
                     }
+
+                    Button {
+                        showModuleManager = true
+                    } label: {
+                        HStack {
+                            Text("Manage modules")
+                                .foregroundStyle(Color.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(Color.secondary)
+                                .imageScale(.small)
+                        }
+                    }
+                    .buttonStyle(.plain)
                 } header: {
                     Text("Active modules")
                 } footer: {
-                    Text("Hide modules you don't use. They won't appear in the activity selector or the weekly plan below.")
+                    Text("Hide modules you don't use. Tap \"Manage modules\" to add, rename, or delete sport modules.")
                 }
 
                 Section {
@@ -83,10 +98,10 @@ struct ScheduleEditorView: View {
                                     .font(.subheadline.weight(.semibold))
 
                                 HStack(spacing: 8) {
-                                    ForEach(ModuleType.optionalModules.filter { viewModel.enabledModules.contains($0) }) { module in
+                                    ForEach(viewModel.enabledModules) { module in
                                         ScheduleChip(
                                             module: module,
-                                            isOn: viewModel.scheduleActivities(for: day).contains(module)
+                                            isOn: viewModel.scheduleActivities(for: day).contains(module.id)
                                         ) {
                                             viewModel.toggleScheduleActivity(module, on: day)
                                         }
@@ -111,6 +126,9 @@ struct ScheduleEditorView: View {
                         .fontWeight(.semibold)
                 }
             }
+            .sheet(isPresented: $showModuleManager) {
+                ModuleManagerView(viewModel: viewModel)
+            }
         }
     }
 }
@@ -120,7 +138,7 @@ private func hourLabel(_ hour: Int) -> String {
 }
 
 private struct ScheduleChip: View {
-    let module: ModuleType
+    let module: ActivityModule
     let isOn: Bool
     let action: () -> Void
 
@@ -128,7 +146,7 @@ private struct ScheduleChip: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Text(module.emoji)
-                Text(module.title)
+                Text(module.name)
                     .font(.subheadline.weight(.semibold))
             }
             .padding(.horizontal, 12)
@@ -140,7 +158,7 @@ private struct ScheduleChip: View {
         }
         .buttonStyle(.plain)
         .contentShape(Capsule())
-        .accessibilityLabel("\(module.title)")
+        .accessibilityLabel(module.name)
         .accessibilityValue(isOn ? "Scheduled" : "Not scheduled")
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
     }
@@ -148,7 +166,7 @@ private struct ScheduleChip: View {
 
 #Preview("Schedule Editor") {
     let container = try! ModelContainer(
-        for: ChecklistItem.self,
+        for: ChecklistItem.self, ActivityModule.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let vm = ChecklistViewModel(modelContext: container.mainContext)

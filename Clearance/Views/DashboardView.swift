@@ -99,33 +99,28 @@ struct DashboardView: View {
         .padding(.horizontal, Theme.Layout.screenPadding)
     }
 
-    /// Morning shows a single "Today" picker; evening splits into what you did
-    /// today (drives unpacking) and what you're doing tomorrow (drives packing).
-    private var enabledModulesSorted: [ModuleType] {
-        ModuleType.optionalModules.filter { viewModel.enabledModules.contains($0) }
-    }
-
     @ViewBuilder private var activitySelectors: some View {
+        let modules = viewModel.enabledModules
         if viewModel.selectedChecklist == .morning {
             ActivitySelectorView(
                 title: "Today",
-                modules: enabledModulesSorted,
-                selected: viewModel.todayActivities,
+                modules: modules,
+                selected: viewModel.todayActivityIDs,
                 palette: palette
             ) { viewModel.toggleTodayActivity($0) }
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 ActivitySelectorView(
                     title: "Done today",
-                    modules: enabledModulesSorted,
-                    selected: viewModel.todayActivities,
+                    modules: modules,
+                    selected: viewModel.todayActivityIDs,
                     palette: palette
                 ) { viewModel.toggleTodayActivity($0) }
 
                 ActivitySelectorView(
                     title: "Packing for tomorrow",
-                    modules: enabledModulesSorted,
-                    selected: viewModel.tomorrowActivities,
+                    modules: modules,
+                    selected: viewModel.tomorrowActivityIDs,
                     palette: palette
                 ) { viewModel.toggleTomorrowActivity($0) }
             }
@@ -136,7 +131,7 @@ struct DashboardView: View {
 
 #Preview("Dashboard") {
     let container = try! ModelContainer(
-        for: ChecklistItem.self,
+        for: ChecklistItem.self, ActivityModule.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let vm = ChecklistViewModel(modelContext: container.mainContext)

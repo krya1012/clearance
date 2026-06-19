@@ -92,20 +92,21 @@ struct ChecklistRowView: View {
 
 #Preview("Checklist Rows") {
     let palette = Theme.palette(for: .evening, scheme: .dark)
+    let stubID = UUID().uuidString
     return VStack(spacing: 10) {
         ChecklistRowView(
             item: ChecklistItem(title: "Hydrate — full glass of water", orderIndex: 0,
-                                associatedModule: .core, associatedChecklist: .morning),
+                                associatedModule: stubID, associatedChecklist: .morning),
             palette: palette
         )
         ChecklistRowView(
             item: ChecklistItem(title: "Box breathing — 5 rounds", orderIndex: 1, isCompleted: true,
-                                associatedModule: .core, associatedChecklist: .morning),
+                                associatedModule: stubID, associatedChecklist: .morning),
             palette: palette
         )
         ChecklistRowView(
             item: ChecklistItem(title: "Cold shower", orderIndex: 2, isSkipped: true,
-                                associatedModule: .core, associatedChecklist: .morning),
+                                associatedModule: stubID, associatedChecklist: .morning),
             palette: palette
         )
     }

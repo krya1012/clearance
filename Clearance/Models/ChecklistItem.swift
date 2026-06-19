@@ -37,8 +37,8 @@ final class ChecklistItem {
     /// Ordering index for the phase itself within its (checklist, module) group.
     var phaseIndex: Int
 
-    /// The module this item is grouped under. Persisted as a String raw value.
-    var associatedModule: ModuleType
+    /// The module this item belongs to. Stored as the UUID string of an ActivityModule.
+    var associatedModule: String
 
     /// The checklist (sequence) this item belongs to. Persisted as a String raw value.
     var associatedChecklist: ChecklistType
@@ -51,7 +51,7 @@ final class ChecklistItem {
         isSkipped: Bool = false,
         phase: String = "",
         phaseIndex: Int = 0,
-        associatedModule: ModuleType,
+        associatedModule: String,
         associatedChecklist: ChecklistType
     ) {
         self.id = id

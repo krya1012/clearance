@@ -6,10 +6,6 @@
 //  • Add mode  — full form: title, checklist, module, phase.
 //  • Edit mode — title and phase only (module/checklist stay fixed).
 //
-//  Phase quick-fill chips show the existing phases for the chosen
-//  (checklist, module) pair so the user can slot a task into the right group
-//  without having to type the exact name from memory.
-//
 
 import SwiftData
 import SwiftUI
@@ -44,24 +40,29 @@ struct ItemEditorView: View {
 
     @State private var title: String
     @State private var selectedChecklist: ChecklistType
-    @State private var selectedModule: ModuleType
+    @State private var selectedModuleID: UUID
     @State private var phaseName: String
 
     init(viewModel: ChecklistViewModel, mode: EditorMode) {
         self.viewModel = viewModel
         self.mode = mode
+        let coreID = viewModel.coreModule?.id ?? UUID()
         switch mode {
         case .add(let checklist):
             _title = State(initialValue: "")
             _selectedChecklist = State(initialValue: checklist)
-            _selectedModule = State(initialValue: .core)
+            _selectedModuleID = State(initialValue: coreID)
             _phaseName = State(initialValue: "")
         case .edit(let item):
             _title = State(initialValue: item.title)
             _selectedChecklist = State(initialValue: item.associatedChecklist)
-            _selectedModule = State(initialValue: item.associatedModule)
+            _selectedModuleID = State(initialValue: UUID(uuidString: item.associatedModule) ?? coreID)
             _phaseName = State(initialValue: item.phase)
         }
+    }
+
+    private var selectedModule: ActivityModule? {
+        viewModel.allModules.first { $0.id == selectedModuleID }
     }
 
     private var canSave: Bool {
@@ -69,7 +70,8 @@ struct ItemEditorView: View {
     }
 
     private var availablePhases: [(name: String, phaseIndex: Int)] {
-        viewModel.availablePhases(for: selectedModule, checklist: selectedChecklist)
+        guard let mod = selectedModule else { return [] }
+        return viewModel.availablePhases(for: mod, checklist: selectedChecklist)
     }
 
     var body: some View {
@@ -125,9 +127,9 @@ struct ItemEditorView: View {
                     Text(type.label).tag(type)
                 }
             }
-            Picker("Module", selection: $selectedModule) {
-                ForEach(ModuleType.allCases) { module in
-                    Text(module.label).tag(module)
+            Picker("Module", selection: $selectedModuleID) {
+                ForEach(viewModel.allModules) { module in
+                    Text(module.label).tag(module.id)
                 }
             }
         }
@@ -137,7 +139,10 @@ struct ItemEditorView: View {
         Section("Sequence") {
             if case .edit(let item) = mode {
                 LabeledContent("Checklist", value: item.associatedChecklist.label)
-                LabeledContent("Module", value: item.associatedModule.label)
+                let moduleName = viewModel.allModules
+                    .first { $0.id.uuidString == item.associatedModule }
+                    .map(\.label) ?? item.associatedModule
+                LabeledContent("Module", value: moduleName)
             }
         }
     }
@@ -177,10 +182,11 @@ struct ItemEditorView: View {
         let trimmed = title.trimmingCharacters(in: .whitespaces)
         switch mode {
         case .add:
+            guard let mod = selectedModule else { return }
             viewModel.addItem(
                 title: trimmed,
                 phase: phaseName,
-                module: selectedModule,
+                module: mod,
                 checklist: selectedChecklist
             )
         case .edit(let item):
@@ -191,7 +197,7 @@ struct ItemEditorView: View {
 
 #Preview("Add Task") {
     let container = try! ModelContainer(
-        for: ChecklistItem.self,
+        for: ChecklistItem.self, ActivityModule.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let vm = ChecklistViewModel(modelContext: container.mainContext)

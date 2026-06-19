@@ -136,10 +136,10 @@ struct ChecklistView: View {
         .accessibilityHidden(true)
     }
 
-    private func sectionHeader(_ module: ModuleType) -> some View {
+    private func sectionHeader(_ module: ActivityModule) -> some View {
         HStack(spacing: 8) {
             Text(module.emoji)
-            Text(module.title.uppercased())
+            Text(module.name.uppercased())
                 .font(.footnote.weight(.bold))
                 .tracking(1.5)
             Spacer()
@@ -169,7 +169,7 @@ struct ChecklistView: View {
 
 #Preview("Checklist with phases") {
     let container = try! ModelContainer(
-        for: ChecklistItem.self,
+        for: ChecklistItem.self, ActivityModule.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let vm = ChecklistViewModel(modelContext: container.mainContext)

@@ -12,10 +12,10 @@ import SwiftUI
 
 struct ActivitySelectorView: View {
     let title: String
-    var modules: [ModuleType] = ModuleType.optionalModules
-    let selected: Set<ModuleType>
+    var modules: [ActivityModule] = []
+    let selected: Set<UUID>
     let palette: ChecklistPalette
-    let onToggle: (ModuleType) -> Void
+    let onToggle: (ActivityModule) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -28,7 +28,7 @@ struct ActivitySelectorView: View {
                 ForEach(modules) { module in
                     ActivityChip(
                         module: module,
-                        isOn: selected.contains(module),
+                        isOn: selected.contains(module.id),
                         palette: palette
                     ) {
                         onToggle(module)
@@ -42,7 +42,7 @@ struct ActivitySelectorView: View {
 }
 
 private struct ActivityChip: View {
-    let module: ModuleType
+    let module: ActivityModule
     let isOn: Bool
     let palette: ChecklistPalette
     let action: () -> Void
@@ -51,7 +51,7 @@ private struct ActivityChip: View {
         Button(action: action) {
             HStack(spacing: 7) {
                 Text(module.emoji)
-                Text(module.title)
+                Text(module.name)
                     .font(.subheadline.weight(.semibold))
                 Image(systemName: isOn ? "checkmark.circle.fill" : "plus.circle")
                     .imageScale(.small)
@@ -71,25 +71,8 @@ private struct ActivityChip: View {
         }
         .buttonStyle(.plain)
         .contentShape(Capsule())
-        .accessibilityLabel("\(module.title) activity")
+        .accessibilityLabel("\(module.name) activity")
         .accessibilityValue(isOn ? "On" : "Off")
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
     }
-}
-
-#Preview("Activity Selector") {
-    VStack(spacing: 16) {
-        ActivitySelectorView(
-            title: "Done today",
-            selected: [.swim],
-            palette: Theme.palette(for: .evening, scheme: .dark)
-        ) { _ in }
-        ActivitySelectorView(
-            title: "Packing for tomorrow",
-            selected: [.gym],
-            palette: Theme.palette(for: .evening, scheme: .dark)
-        ) { _ in }
-    }
-    .padding()
-    .background(Color.black)
 }

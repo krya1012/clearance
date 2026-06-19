@@ -32,7 +32,7 @@ struct ClearanceApp: App {
         let container: ModelContainer
         do {
             container = try ModelContainer(
-                for: ChecklistItem.self,
+                for: ChecklistItem.self, ActivityModule.self,
                 configurations: ModelConfiguration(isStoredInMemoryOnly: false)
             )
         } catch {
@@ -42,7 +42,7 @@ struct ClearanceApp: App {
             // "the app won't run"), fall back to an in-memory store so the UI
             // still appears with clean, freshly-seeded content.
             container = try! ModelContainer(
-                for: ChecklistItem.self,
+                for: ChecklistItem.self, ActivityModule.self,
                 configurations: ModelConfiguration(isStoredInMemoryOnly: true)
             )
         }
