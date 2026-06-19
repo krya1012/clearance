@@ -10,7 +10,7 @@ This is a pure SwiftUI / SwiftData iOS app with no package dependencies and no e
 - **Build/run:** `⌘R` in Xcode — pick an iOS 17+ simulator or a physical iPhone
 - **Build check (no simulator required):**
   ```
-  xcodebuild -project Clearance.xcodeproj -scheme Clearance -destination 'platform=iOS Simulator,name=iPhone 17' build
+  xcodebuild -project Clearance.xcodeproj -scheme Clearance -destination 'generic/platform=iOS' build
   ```
 - **Target Swift version:** Swift 6 strict concurrency (`SWIFT_VERSION = 6.0`). The build must be **zero-warning** under strict mode.
 - No test target exists yet; the README notes the ViewModel logic is side-effect-light and straightforward to cover with XCTest if one is added.
@@ -20,21 +20,25 @@ This is a pure SwiftUI / SwiftData iOS app with no package dependencies and no e
 Single-screen MVVM app. One `@MainActor @Observable` view model owns all state; views are purely reactive.
 
 **Data flow:**
-1. `ClearanceApp.init` builds the `ModelContainer` (with in-memory fallback on store open failure) and instantiates `ChecklistViewModel`.
-2. `ChecklistViewModel` holds `allItems: [ChecklistItem]` fetched from SwiftData. All derived state (`sections`, `progress`, counts) is computed from `allItems` + `selectedChecklist` + today/tomorrow activity sets — no manual `onChange` wiring needed.
-3. Every mutation saves the context, fires a haptic, then calls `reloadItems()` to re-fetch.
+1. `ClearanceApp.init` builds the `ModelContainer` for `ChecklistItem` and `ActivityModule` (with in-memory fallback on store open failure) and instantiates `ChecklistViewModel`.
+2. `ChecklistViewModel` holds `allModules: [ActivityModule]` and `allItems: [ChecklistItem]` fetched from SwiftData. All derived state (`sections`, `progress`, counts) is computed from those + `selectedChecklist` + today/tomorrow activity ID sets — no manual `onChange` wiring needed.
+3. Every mutation saves the context, fires a haptic, then calls `reloadItems()` (and `reloadModules()` for module changes) to re-fetch.
 
 **Activity gating (the key non-obvious behavior):**
-- `ScheduleStore` persists a recurring weekly plan (`[Weekday: Set<ModuleType>]`) and per-date overrides (`[String: Set<ModuleType>]`) in `UserDefaults`.
-- `ChecklistViewModel` computes `todayActivities` and `tomorrowActivities` from those on init (and on `refresh()`). Activities are intersected with `enabledModules` so disabled modules can never bleed in via saved overrides.
-- Morning items for optional modules are shown when `todayActivities` contains that module (gear-check role).
-- Evening items for optional modules split by `phaseIndex`: `0` = pack-for-tomorrow (gated by `tomorrowActivities`), `>0` = post-session unload (gated by `todayActivities`). This lets one evening both unload today's sport and pack tomorrow's different sport.
+- `ScheduleStore` persists a recurring weekly plan (`[Weekday: Set<UUID>]`) and per-date overrides (`[String: Set<UUID>]`) in `UserDefaults`, keyed by `ActivityModule.id`.
+- `ChecklistViewModel` computes `todayActivityIDs` and `tomorrowActivityIDs` from those on init (and on `refresh()`). Activities are intersected with `enabledModuleIDs` so disabled modules can never bleed in via saved overrides.
+- Morning items for optional modules are shown when `todayActivityIDs` contains that module's UUID (gear-check role).
+- Evening items for optional modules split by `phaseIndex`: `0` = pack-for-tomorrow (gated by `tomorrowActivityIDs`), `>0` = post-session unload (gated by `todayActivityIDs`). This lets one evening both unload today's sport and pack tomorrow's different sport.
 
-**Global module enable/disable:**
-- `enabledModules: Set<ModuleType>` on the VM (persisted via `ScheduleStore`) controls which optional modules (Gym/Swim/Judo) are visible at all.
-- Disabled modules are filtered out of `sections`, `todayActivities`, `tomorrowActivities`, the activity-selector chips, and the schedule editor's weekday grid.
+**Dynamic modules (ActivityModule):**
+- Modules are SwiftData `@Model` objects, not a compile-time enum. Users can add, rename, change emoji, or delete sport modules via `ModuleManagerView` (sheet from `ScheduleEditorView`).
+- `isCore: Bool` marks the one permanent Core module — it cannot be renamed or deleted.
+- `ChecklistItem.associatedModule` stores `activityModule.id.uuidString` (plain `String` column in SQLite).
+- `enabledModuleIDs: Set<UUID>` on the VM (persisted via `ScheduleStore`) controls which optional modules are visible at all.
+- Disabled modules are filtered out of `sections`, `todayActivityIDs`, `tomorrowActivityIDs`, the activity-selector chips, and the schedule editor's weekday grid.
 - Toggled via `toggleModuleEnabled(_:)` from the "Active modules" section in `ScheduleEditorView`.
-- Default is all modules enabled (backwards compatible with existing installs).
+- Deleting a module (`deleteModule(_:)`) also deletes all its `ChecklistItem` records.
+- Default seed: Core / Gym / Swim / Judo / Cycling / Running (all optional modules enabled on first launch).
 
 **Auto-reset:**
 - `ChecklistViewModel.refresh()` (called on every foreground wake) calls `checkAutoReset()`, which silently clears all tasks if the configured `resetHour` has passed since the last auto-reset.
@@ -43,13 +47,14 @@ Single-screen MVVM app. One `@MainActor @Observable` view model owns all state; 
 - `resetAll(silent:)` — pass `silent: true` to skip the haptic (used by auto-reset).
 
 **Seed data versioning:**
-- `SeedData.currentVersion` (an `Int` in `SeedData.swift`) gates seeding via `UserDefaults`. Bump it whenever canonical checklist content changes — the old items are deleted and the fresh set is re-inserted on next launch.
+- `SeedData.currentVersion` (an `Int` in `SeedData.swift`) gates seeding via `UserDefaults`. Bump it whenever canonical checklist content changes — existing `ActivityModule` and `ChecklistItem` records are deleted and the fresh set is re-inserted on next launch.
+- Current version: **7**.
 
 **Persistence keys (UserDefaults):**
 - `Clearance.seedVersion.v1` — tracks seed version
-- `Clearance.weeklySchedule.v1` — JSON-encoded weekly schedule
-- `Clearance.activityOverrides.v1` — JSON-encoded per-date overrides (pruned to ±1 day)
-- `Clearance.enabledModules.v1` — JSON-encoded set of active optional module rawValues
+- `Clearance.weeklySchedule.v2` — JSON-encoded `[Weekday.rawValue: [UUID string]]`
+- `Clearance.activityOverrides.v2` — JSON-encoded `[dateKey: [UUID string]]` (pruned to ±1 day)
+- `Clearance.enabledModules.v2` — JSON-encoded `[UUID string]` of active optional module IDs
 - `Clearance.autoResetHour.v1` — Int, hour of day for nightly auto-reset (default 3)
 - `Clearance.lastAutoReset.v1` — Date, timestamp of last auto-reset (default `.distantPast`)
 
