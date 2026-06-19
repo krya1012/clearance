@@ -44,6 +44,18 @@ struct ScheduleEditorView: View {
                     Text("Hide modules you don't use. They won't appear in the activity selector or the weekly plan below.")
                 }
 
+                Section {
+                    Picker("Reset time", selection: $viewModel.resetHour) {
+                        ForEach(0..<7) { hour in
+                            Text(hourLabel(hour)).tag(hour)
+                        }
+                    }
+                } header: {
+                    Text("Auto-reset")
+                } footer: {
+                    Text("Tasks are cleared automatically on first open after this time. Tap \"Reset for tomorrow\" any time to reset early.")
+                }
+
                 if !viewModel.enabledModules.isEmpty {
                     Section {
                         ForEach(Weekday.displayOrder) { day in
@@ -82,6 +94,10 @@ struct ScheduleEditorView: View {
             }
         }
     }
+}
+
+private func hourLabel(_ hour: Int) -> String {
+    hour == 0 ? "Midnight (12 AM)" : "\(hour) AM"
 }
 
 private struct ScheduleChip: View {

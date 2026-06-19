@@ -18,6 +18,8 @@ final class ScheduleStore {
     private let scheduleKey = "Clearance.weeklySchedule.v1"
     private let overridesKey = "Clearance.activityOverrides.v1"
     private let enabledModulesKey = "Clearance.enabledModules.v1"
+    private let autoResetHourKey  = "Clearance.autoResetHour.v1"
+    private let lastAutoResetKey  = "Clearance.lastAutoReset.v1"
 
     init(defaults: UserDefaults = .standard, calendar: Calendar = .current) {
         self.defaults = defaults
@@ -85,6 +87,26 @@ final class ScheduleStore {
         if let data = try? JSONEncoder().encode(modules.map(\.rawValue)) {
             defaults.set(data, forKey: enabledModulesKey)
         }
+    }
+
+    // MARK: - Auto-reset
+
+    func loadResetHour() -> Int {
+        defaults.object(forKey: autoResetHourKey) == nil
+            ? 3
+            : defaults.integer(forKey: autoResetHourKey)
+    }
+
+    func saveResetHour(_ hour: Int) {
+        defaults.set(hour, forKey: autoResetHourKey)
+    }
+
+    func loadLastAutoReset() -> Date {
+        (defaults.object(forKey: lastAutoResetKey) as? Date) ?? .distantPast
+    }
+
+    func saveLastAutoReset(_ date: Date) {
+        defaults.set(date, forKey: lastAutoResetKey)
     }
 
     // MARK: - Defaults

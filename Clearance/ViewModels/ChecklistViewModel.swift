@@ -67,6 +67,11 @@ final class ChecklistViewModel {
     /// Optional modules the user has marked as active (relevant). Core is always on.
     private(set) var enabledModules: Set<ModuleType> = []
 
+    /// Hour (0–6) at which tasks are auto-reset each day. Persisted; default 3 AM.
+    var resetHour: Int = 3 {
+        didSet { scheduleStore.saveResetHour(resetHour) }
+    }
+
     // MARK: - Dependencies
 
     @ObservationIgnored private let modelContext: ModelContext
@@ -84,6 +89,7 @@ final class ChecklistViewModel {
         self.weeklySchedule = store.loadSchedule()
         self.overrides = store.loadOverrides()
         self.enabledModules = store.loadEnabledModules()
+        self.resetHour = store.loadResetHour()
         SeedData.seedIfNeeded(in: modelContext)
         reloadItems()
         recomputeActivities()
@@ -182,7 +188,22 @@ final class ChecklistViewModel {
     /// Re-derive today's / tomorrow's activities for the current date — call when
     /// the app returns to the foreground so the day rolls over correctly.
     func refresh() {
+        checkAutoReset()
         recomputeActivities()
+    }
+
+    private func checkAutoReset() {
+        let now = Date()
+        let cal = Calendar.current
+        var c = cal.dateComponents([.year, .month, .day], from: now)
+        c.hour = resetHour; c.minute = 0; c.second = 0
+        guard let todayThreshold = cal.date(from: c) else { return }
+        let threshold = now >= todayThreshold
+            ? todayThreshold
+            : cal.date(byAdding: .day, value: -1, to: todayThreshold) ?? todayThreshold
+        guard scheduleStore.loadLastAutoReset() < threshold else { return }
+        resetAll(silent: true)
+        scheduleStore.saveLastAutoReset(now)
     }
 
     private func recomputeActivities() {
@@ -349,13 +370,13 @@ final class ChecklistViewModel {
     func skip(_ item: ChecklistItem) { setSkipped(item, skipped: true) }
     func restore(_ item: ChecklistItem) { setSkipped(item, skipped: false) }
 
-    func resetAll() {
+    func resetAll(silent: Bool = false) {
         for item in allItems {
             item.isCompleted = false
             item.isSkipped = false
         }
         save()
-        haptics.reset()
+        if !silent { haptics.reset() }
         reloadItems()
     }
 
