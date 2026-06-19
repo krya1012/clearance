@@ -213,6 +213,14 @@ Open in Xcode 16+, run on an iOS 17+ simulator or your iPhone, and confirm:
 
 ## License
 
-Created as a demonstration project. Use freely.
+Licensed under the **[PolyForm Noncommercial License 1.0.0](LICENSE.md)**.
+
+You're free to **use, copy, modify, and share** Clearance for any **noncommercial**
+purpose — personal use, study, hobby projects, research, and use by nonprofits,
+schools, or public institutions. **Commercial use is not permitted.** See
+[`LICENSE.md`](LICENSE.md) for the full terms.
+
+> Note: a no-commercial-use restriction means this is *source-available*, not an
+> OSI-approved "open source" license. This summary isn't legal advice.
 </content>
 </invoke>
