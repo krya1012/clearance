@@ -46,3 +46,6 @@ fastlane/test_output
 # Misc
 *.swp
 *~
+
+# Patch artifacts (generated, not source)
+*.patch

@@ -12,8 +12,11 @@ inject on demand. Built to be glanceable, high-contrast, and fast.
 
 - **Two sequences** — 🌅 *Takeoff* (morning) and 🌌 *Landing* (evening), switched via a
   segmented control.
-- **Optional modules** — flip 🏋️ *Gym* / 🏊 *Swim* on and their tasks are injected into (or
-  removed from) the active list instantly, with a spring animation. *Core* is always on.
+- **Activity modules** — 🏋️ *Gym*, 🏊 *Swim*, and 🥋 *Judo*. *Core* is always on; the sport
+  modules are driven by a **weekly schedule** (set which days you train) with per-day override.
+- **Unpack today / pack tomorrow** — the evening shows the *unload* tasks for what you did
+  **today** and the *pack* tasks for what you're doing **tomorrow**, so you can (e.g.) unpack
+  Swim and pack Gym on the same night. The morning then grabs that day's gear.
 - **Glanceable progress** — a minimalist, animated progress bar plus a live `completed / total`
   fraction and percentage. Skipped tasks are excluded from the denominator.
 - **Tactile rows** — large checkbox targets; completing a task dims it, strikes it through, and
@@ -109,23 +112,26 @@ Clearance/
 ├─ ClearanceApp.swift        @main entry — builds the ModelContainer, owns the ViewModel
 ├─ Models/
 │  ├─ ChecklistType.swift    enum .morning/.evening + Takeoff/Landing display metadata
-│  ├─ ModuleType.swift       enum .core/.gym/.swim + optional/sort-order helpers
+│  ├─ ModuleType.swift       enum .core/.gym/.swim/.judo + optional/sort-order helpers
+│  ├─ Weekday.swift          enum Sun…Sat aligned with Calendar; drives the schedule
 │  ├─ ChecklistItem.swift    @Model — the single persisted entity
 │  └─ SeedData.swift         versioned first-launch default content
 ├─ ViewModels/
 │  └─ ChecklistViewModel.swift   @MainActor @Observable — single source of truth
 ├─ Views/
-│  ├─ DashboardView.swift    the screen: switch · progress · toggles · list · reset
-│  ├─ ChecklistView.swift    grouped List + phase sub-headers + swipe actions
-│  ├─ ChecklistRowView.swift the tactile task row
+│  ├─ DashboardView.swift        the screen: switch · progress · activity pickers · list · reset
+│  ├─ ChecklistView.swift        grouped List + phase sub-headers + swipe actions
+│  ├─ ChecklistRowView.swift     the tactile task row
 │  ├─ ProgressHeaderView.swift   animated progress bar
-│  ├─ ModuleToggleView.swift Gym/Swim quick-toggle chips
-│  └─ ItemEditorView.swift   add / edit task sheet
+│  ├─ ActivitySelectorView.swift today / done-today / tomorrow activity chips
+│  ├─ ScheduleEditorView.swift   weekly plan editor (sheet)
+│  └─ ItemEditorView.swift       add / edit task sheet
 ├─ Helpers/
 │  ├─ Haptics.swift          @MainActor wrapper over UIKit feedback generators
 │  ├─ Theme.swift            color palettes (true-black evening) + layout/motion tokens
+│  ├─ ScheduleStore.swift    UserDefaults-backed weekly schedule + per-day overrides
 │  └─ Extensions.swift       Color(hex:)
-└─ Assets.xcassets/          AccentColor (teal), AppIcon placeholder
+└─ Assets.xcassets/          AccentColor (teal), AppIcon
 ```
 
 ### Data model (SwiftData)

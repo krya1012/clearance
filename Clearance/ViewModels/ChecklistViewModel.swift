@@ -7,13 +7,16 @@
 //  can safely drive UIKit haptics and the SwiftData main context under Swift 6
 //  strict concurrency.
 //
-//  Reactivity model
-//  ----------------
-//  `allItems` is fetched once on init and re-fetched after every mutation.
-//  Everything the UI reads — `sections`, `progress`, counts — is *computed*
-//  from `allItems` + `selectedChecklist` + `enabledModules`. Because those
-//  three are Observation-tracked, changing the selected sequence or toggling a
-//  module recomputes the visible list automatically.
+//  Activity model
+//  --------------
+//  Each day has a set of activities (Gym/Swim/Judo) derived from a recurring
+//  weekly schedule, optionally overridden per date. Those activities drive what
+//  the checklist shows:
+//    • Morning  — for each of *today's* activities, the "grab & final check".
+//    • Evening  — for each of *today's* activities, the post-session UNLOAD;
+//                 for each of *tomorrow's* activities, the PACK-for-tomorrow.
+//  This lets a single evening unpack one sport (done today) while packing a
+//  different sport (tomorrow) — e.g. unpack Swim, pack Gym.
 //
 
 import Foundation
@@ -49,38 +52,66 @@ final class ChecklistViewModel {
     /// The sequence currently shown on the dashboard. Bindable from the UI.
     var selectedChecklist: ChecklistType = .morning
 
-    /// Modules currently active. `.core` is always present.
-    private(set) var enabledModules: Set<ModuleType>
-
     /// All persisted items, kept in sync with the store after each mutation.
     private(set) var allItems: [ChecklistItem] = []
+
+    /// The recurring weekly plan: which optional modules run on each weekday.
+    private(set) var weeklySchedule: [Weekday: Set<ModuleType>] = [:]
+
+    /// Activities for today (drives morning gear-check + evening unload).
+    private(set) var todayActivities: Set<ModuleType> = []
+
+    /// Activities for tomorrow (drives evening packing).
+    private(set) var tomorrowActivities: Set<ModuleType> = []
 
     // MARK: - Dependencies
 
     @ObservationIgnored private let modelContext: ModelContext
     @ObservationIgnored private let haptics: HapticsManager
-
-    private static let enabledModulesDefaultsKey = "Clearance.enabledModules.v1"
+    @ObservationIgnored private let scheduleStore: ScheduleStore
+    @ObservationIgnored private var overrides: [String: Set<ModuleType>] = [:]
 
     // MARK: - Init
 
     init(modelContext: ModelContext, haptics: HapticsManager = HapticsManager()) {
         self.modelContext = modelContext
         self.haptics = haptics
-        self.enabledModules = Self.loadEnabledModules()
+        let store = ScheduleStore()
+        self.scheduleStore = store
+        self.weeklySchedule = store.loadSchedule()
+        self.overrides = store.loadOverrides()
         SeedData.seedIfNeeded(in: modelContext)
         reloadItems()
+        recomputeActivities()
         haptics.prepare()
+    }
+
+    // MARK: - Task roles
+
+    /// What a task represents, derived from its checklist/module/phase. Drives
+    /// which activity selection (today vs tomorrow) gates the task.
+    private enum TaskRole { case anytime, gearCheck, pack, unload }
+
+    private func role(of item: ChecklistItem) -> TaskRole {
+        if item.associatedModule == .core { return .anytime }
+        if item.associatedChecklist == .morning { return .gearCheck }
+        // Evening module tasks: phase 0 = "Collect & Pack" (tomorrow), else unload (today).
+        return item.phaseIndex == 0 ? .pack : .unload
     }
 
     // MARK: - Derived view state
 
-    /// Sections for the selected checklist, filtered by enabled modules,
-    /// grouped by module → phase → items, sorted for display.
+    /// Sections for the selected checklist, gated by today's / tomorrow's
+    /// activities, grouped by module → phase → items, sorted for display.
     var sections: [ChecklistSection] {
-        let visible = allItems.filter {
-            $0.associatedChecklist == selectedChecklist
-                && enabledModules.contains($0.associatedModule)
+        let visible = allItems.filter { item in
+            guard item.associatedChecklist == selectedChecklist else { return false }
+            switch role(of: item) {
+            case .anytime:   return true
+            case .gearCheck: return todayActivities.contains(item.associatedModule)
+            case .pack:      return tomorrowActivities.contains(item.associatedModule)
+            case .unload:    return todayActivities.contains(item.associatedModule)
+            }
         }
 
         let byModule = Dictionary(grouping: visible, by: \.associatedModule)
@@ -122,10 +153,6 @@ final class ChecklistViewModel {
         totalActiveCount > 0 && completedCount == totalActiveCount
     }
 
-    func isEnabled(_ module: ModuleType) -> Bool {
-        enabledModules.contains(module)
-    }
-
     /// Returns all named phases for a given (module, checklist), in order.
     /// Used by `ItemEditorView` to offer quick-fill suggestions.
     func availablePhases(for module: ModuleType, checklist: ChecklistType) -> [(name: String, phaseIndex: Int)] {
@@ -141,6 +168,74 @@ final class ChecklistViewModel {
             }
         }
         return result
+    }
+
+    // MARK: - Activities (today / tomorrow)
+
+    /// Re-derive today's / tomorrow's activities for the current date — call when
+    /// the app returns to the foreground so the day rolls over correctly.
+    func refresh() {
+        recomputeActivities()
+    }
+
+    private func recomputeActivities() {
+        let today = Date()
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) ?? today
+        todayActivities = activities(on: today)
+        tomorrowActivities = activities(on: tomorrow)
+    }
+
+    private func activities(on date: Date) -> Set<ModuleType> {
+        if let override = overrides[scheduleStore.dateKey(for: date)] { return override }
+        return weeklySchedule[Weekday.of(date)] ?? []
+    }
+
+    func toggleTodayActivity(_ module: ModuleType) {
+        toggleActivity(module, on: Date())
+    }
+
+    func toggleTomorrowActivity(_ module: ModuleType) {
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        toggleActivity(module, on: tomorrow)
+    }
+
+    private func toggleActivity(_ module: ModuleType, on date: Date) {
+        guard module.isOptional else { return }
+        let key = scheduleStore.dateKey(for: date)
+        var set = overrides[key] ?? (weeklySchedule[Weekday.of(date)] ?? [])
+        if set.contains(module) { set.remove(module) } else { set.insert(module) }
+        overrides[key] = set
+        pruneOverrides()
+        scheduleStore.saveOverrides(overrides)
+        haptics.moduleToggled()
+        recomputeActivities()
+    }
+
+    /// Drops override entries that aren't for yesterday/today/tomorrow so the
+    /// store doesn't grow without bound.
+    private func pruneOverrides() {
+        let cal = Calendar.current
+        let now = Date()
+        let keep = Set([-1, 0, 1]
+            .compactMap { cal.date(byAdding: .day, value: $0, to: now) }
+            .map { scheduleStore.dateKey(for: $0) })
+        overrides = overrides.filter { keep.contains($0.key) }
+    }
+
+    // MARK: - Weekly schedule
+
+    func scheduleActivities(for day: Weekday) -> Set<ModuleType> {
+        weeklySchedule[day] ?? []
+    }
+
+    func toggleScheduleActivity(_ module: ModuleType, on day: Weekday) {
+        guard module.isOptional else { return }
+        var set = weeklySchedule[day] ?? []
+        if set.contains(module) { set.remove(module) } else { set.insert(module) }
+        weeklySchedule[day] = set
+        scheduleStore.saveSchedule(weeklySchedule)
+        haptics.moduleToggled()
+        recomputeActivities()
     }
 
     // MARK: - CRUD
@@ -234,13 +329,6 @@ final class ChecklistViewModel {
     func skip(_ item: ChecklistItem) { setSkipped(item, skipped: true) }
     func restore(_ item: ChecklistItem) { setSkipped(item, skipped: false) }
 
-    func setModule(_ module: ModuleType, enabled: Bool) {
-        guard module.isOptional else { return }
-        if enabled { enabledModules.insert(module) } else { enabledModules.remove(module) }
-        persistEnabledModules()
-        haptics.moduleToggled()
-    }
-
     func resetAll() {
         for item in allItems {
             item.isCompleted = false
@@ -266,23 +354,5 @@ final class ChecklistViewModel {
         } catch {
             assertionFailure("Clearance: failed to save model context — \(error)")
         }
-    }
-
-    private func persistEnabledModules() {
-        UserDefaults.standard.set(
-            enabledModules.map(\.rawValue),
-            forKey: Self.enabledModulesDefaultsKey
-        )
-    }
-
-    private static func loadEnabledModules() -> Set<ModuleType> {
-        guard
-            let raw = UserDefaults.standard.array(forKey: enabledModulesDefaultsKey) as? [String]
-        else {
-            return [.core]
-        }
-        var modules = Set(raw.compactMap(ModuleType.init(rawValue:)))
-        modules.insert(.core)
-        return modules
     }
 }
