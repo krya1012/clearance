@@ -11,14 +11,20 @@ import SwiftUI
 
 struct DashboardView: View {
     @Bindable var viewModel: ChecklistViewModel
-    @Environment(\.colorScheme) private var systemScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var editorMode: EditorMode? = nil
     @State private var showSchedule = false
+    @State private var appColorScheme: ColorScheme = DashboardView.timeBasedScheme()
 
     private var palette: ChecklistPalette {
-        Theme.palette(for: viewModel.selectedChecklist, scheme: systemScheme)
+        Theme.palette(for: viewModel.selectedChecklist, scheme: appColorScheme)
+    }
+
+    /// Day (7 AM–9 PM) = light, night = dark.
+    private static func timeBasedScheme() -> ColorScheme {
+        let hour = Calendar.current.component(.hour, from: Date())
+        return (hour >= 7 && hour < 21) ? .light : .dark
     }
 
     var body: some View {
@@ -46,13 +52,16 @@ struct DashboardView: View {
             }
             .padding(.top, 8)
         }
-        .preferredColorScheme(nil)
+        .preferredColorScheme(appColorScheme)
         .animation(
             reduceMotion ? nil : Theme.Motion.spring,
             value: viewModel.selectedChecklist
         )
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active { viewModel.refresh() }
+            if newPhase == .active {
+                appColorScheme = DashboardView.timeBasedScheme()
+                viewModel.refresh()
+            }
         }
         .sheet(item: $editorMode) { mode in
             ItemEditorView(viewModel: viewModel, mode: mode)
