@@ -20,27 +20,6 @@ struct ScheduleEditorView: View {
         NavigationStack {
             Form {
                 Section {
-                    ForEach(viewModel.optionalModules) { module in
-                        Button {
-                            viewModel.toggleModuleEnabled(module)
-                        } label: {
-                            HStack {
-                                Image(systemName: viewModel.enabledModuleIDs.contains(module.id)
-                                      ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(viewModel.enabledModuleIDs.contains(module.id)
-                                                     ? Color.accentColor : Color.secondary.opacity(0.4))
-                                Text(module.label)
-                                    .foregroundStyle(Color.primary)
-                                Spacer()
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(module.name)
-                        .accessibilityValue(viewModel.enabledModuleIDs.contains(module.id) ? "Active" : "Hidden")
-                        .accessibilityAddTraits(.isButton)
-                    }
-                    .onMove { viewModel.moveModule(from: $0, to: $1) }
-
                     Button {
                         showModuleManager = true
                     } label: {
@@ -55,11 +34,10 @@ struct ScheduleEditorView: View {
                     }
                     .buttonStyle(.plain)
                 } header: {
-                    Text("Active modules")
+                    Text("Modules")
                 } footer: {
-                    Text("Hide modules you don't use. Tap \"Manage modules\" to add, rename, or delete sport modules.")
+                    Text("Add, rename, or delete sport modules. The weekly grid below shows all installed modules.")
                 }
-                .environment(\.editMode, .constant(.active))
 
                 Section {
                     Picker("Reset time", selection: $viewModel.resetHour) {
@@ -91,15 +69,20 @@ struct ScheduleEditorView: View {
                     Text("This unchecks every task in both Takeoff and Landing.")
                 }
 
-                if !viewModel.enabledModules.isEmpty {
-                    Section {
-                        WeeklyPlanGrid(viewModel: viewModel)
+                let weeklyModules = viewModel.enabledModules
+                Section {
+                    if weeklyModules.isEmpty {
+                        Text("No modules installed. Tap \"Manage modules\" to add one.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        WeeklyPlanGrid(viewModel: viewModel, modules: weeklyModules)
                             .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-                    } header: {
-                        Text("Weekly plan")
-                    } footer: {
-                        Text("Mornings grab that day's gear. Evenings unpack what you did today and pack for tomorrow's activity. You can still override any single day from the dashboard.")
                     }
+                } header: {
+                    Text("Weekly plan")
+                } footer: {
+                    Text("Mornings grab gear; evenings unpack today and pack for tomorrow. Override any day from the dashboard.")
                 }
             }
             .navigationTitle("Schedule")
@@ -121,6 +104,7 @@ struct ScheduleEditorView: View {
 
 private struct WeeklyPlanGrid: View {
     let viewModel: ChecklistViewModel
+    let modules: [ActivityModule]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -140,7 +124,7 @@ private struct WeeklyPlanGrid: View {
         HStack(spacing: 0) {
             Text("")
                 .frame(width: 48)
-            ForEach(viewModel.enabledModules) { module in
+            ForEach(modules) { module in
                 Text(module.emoji)
                     .font(.body)
                     .frame(maxWidth: .infinity)
@@ -158,7 +142,7 @@ private struct WeeklyPlanGrid: View {
                 .foregroundStyle(.primary)
                 .frame(width: 48, alignment: .leading)
 
-            ForEach(viewModel.enabledModules) { module in
+            ForEach(modules) { module in
                 let isOn = viewModel.scheduleActivities(for: day).contains(module.id)
                 Button {
                     viewModel.toggleScheduleActivity(module, on: day)

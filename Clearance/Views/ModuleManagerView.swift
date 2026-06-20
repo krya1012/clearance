@@ -2,9 +2,6 @@
 //  ModuleManagerView.swift
 //  Clearance
 //
-//  Sheet for adding, renaming, or deleting optional sport modules.
-//  Core module is always shown at the top and cannot be edited or deleted.
-//
 
 import SwiftData
 import SwiftUI
@@ -14,80 +11,96 @@ struct ModuleManagerView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var addSheetVisible = false
-    @State private var moduleToEdit: ActivityModule? = nil
-    @State private var moduleToDelete: ActivityModule? = nil
+    @State private var moduleToEdit: ActivityModule?
+    @State private var moduleToDelete: ActivityModule?
     @State private var showDeleteConfirm = false
-    @State private var moduleToRestore: ActivityModule? = nil
+    @State private var moduleToRestore: ActivityModule?
     @State private var showRestoreConfirm = false
+    @State private var showTemplateLibrary = false
 
     var body: some View {
         NavigationStack {
             List {
+                // ── Fixed section: Core (always on) + locked modules (toggleable) ──
                 if let core = viewModel.coreModule {
-                    Section {
-                        HStack {
-                            Text(core.label)
-                            Spacer()
-                            Text("Core")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            if viewModel.hasDefaultTasks(for: core) {
-                                Button {
-                                    moduleToRestore = core
-                                    showRestoreConfirm = true
-                                } label: {
-                                    Label("Restore", systemImage: "arrow.counterclockwise")
-                                }
-                                .tint(.blue)
+                    let lockedModules = viewModel.optionalModules.filter(\.isLocked)
+                    if !lockedModules.isEmpty || true {
+                        Section {
+                            // Core — no toggle, always on
+                            HStack {
+                                Text(core.label)
+                                Spacer()
+                                Text("Core")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
                             }
+
+                            // Locked optional modules (e.g. Rest) — toggleable, not editable/deletable
+                            ForEach(lockedModules) { module in
+                                lockedRow(module)
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        if viewModel.hasDefaultTasks(for: module) {
+                                            Button {
+                                                moduleToRestore = module
+                                                showRestoreConfirm = true
+                                            } label: {
+                                                Label("Restore", systemImage: "arrow.counterclockwise")
+                                            }
+                                            .tint(.blue)
+                                        }
+                                    }
+                            }
+                        } header: {
+                            Text("Fixed")
                         }
-                    } header: {
-                        Text("Fixed")
                     }
                 }
 
+                // ── Optional section: user modules, toggleable + editable ──
                 Section {
-                    ForEach(viewModel.optionalModules) { module in
-                        Button {
-                            moduleToEdit = module
-                        } label: {
-                            HStack {
-                                Text(module.label)
-                                    .foregroundStyle(Color.primary)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundStyle(Color.secondary)
-                                    .imageScale(.small)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                            if viewModel.hasDefaultTasks(for: module) {
-                                Button {
-                                    moduleToRestore = module
-                                    showRestoreConfirm = true
-                                } label: {
-                                    Label("Restore", systemImage: "arrow.counterclockwise")
+                    ForEach(viewModel.optionalModules.filter { !$0.isLocked }) { module in
+                        optionalRow(module)
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                if viewModel.hasDefaultTasks(for: module) {
+                                    Button {
+                                        moduleToRestore = module
+                                        showRestoreConfirm = true
+                                    } label: {
+                                        Label("Restore", systemImage: "arrow.counterclockwise")
+                                    }
+                                    .tint(.blue)
                                 }
-                                .tint(.blue)
                             }
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                moduleToDelete = module
-                                showDeleteConfirm = true
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    moduleToDelete = module
+                                    showDeleteConfirm = true
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
                             }
+                    }
+                    .onMove { viewModel.moveUnlockedModule(from: $0, to: $1) }
+
+                    Button {
+                        showTemplateLibrary = true
+                    } label: {
+                        HStack {
+                            Text("Browse templates")
+                                .foregroundStyle(Color.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(Color.secondary)
+                                .imageScale(.small)
                         }
                     }
+                    .buttonStyle(.plain)
                 } header: {
                     Text("Optional modules")
                 } footer: {
-                    Text("Tap a module to rename it. Swipe left to delete. Drag to reorder.")
+                    Text("Toggle on/off to show or hide in checklist and weekly plan. Hidden modules are not deleted.")
                 }
+                .environment(\.editMode, .constant(.active))
             }
             .navigationTitle("Modules")
             .navigationBarTitleDisplayMode(.inline)
@@ -97,9 +110,7 @@ struct ModuleManagerView: View {
                         .fontWeight(.semibold)
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        addSheetVisible = true
-                    } label: {
+                    Button { addSheetVisible = true } label: {
                         Image(systemName: "plus")
                     }
                     .accessibilityLabel("Add module")
@@ -110,6 +121,9 @@ struct ModuleManagerView: View {
             }
             .sheet(item: $moduleToEdit) { module in
                 ModuleEditSheet(viewModel: viewModel, module: module)
+            }
+            .sheet(isPresented: $showTemplateLibrary) {
+                TemplateLibraryView(viewModel: viewModel)
             }
             .confirmationDialog(
                 "Delete \(moduleToDelete?.name ?? "module")?",
@@ -133,9 +147,56 @@ struct ModuleManagerView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This replaces all current tasks for this module with the original defaults. Any tasks you added will be removed.")
+                Text("This replaces all current tasks for this module with the original defaults.")
             }
         }
+    }
+
+    // MARK: - Row builders
+
+    /// Locked module row (e.g. Rest): toggle on left, "Locked" badge on right.
+    private func lockedRow(_ module: ActivityModule) -> some View {
+        HStack(spacing: 12) {
+            toggleButton(module)
+            Text(module.label)
+                .foregroundStyle(Color.primary)
+            Spacer()
+            Text("Locked")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .contentShape(Rectangle())
+    }
+
+    /// Optional unlocked row: toggle on left, edit chevron on right.
+    private func optionalRow(_ module: ActivityModule) -> some View {
+        HStack(spacing: 12) {
+            toggleButton(module)
+            Text(module.label)
+                .foregroundStyle(Color.primary)
+            Spacer()
+            Button { moduleToEdit = module } label: {
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(Color.secondary)
+                    .imageScale(.small)
+            }
+            .buttonStyle(.plain)
+        }
+        .contentShape(Rectangle())
+    }
+
+    private func toggleButton(_ module: ActivityModule) -> some View {
+        let isOn = viewModel.enabledModuleIDs.contains(module.id)
+        return Button {
+            viewModel.toggleModuleEnabled(module)
+        } label: {
+            Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isOn ? Color.accentColor : Color.secondary.opacity(0.4))
+                .font(.system(size: 22))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(module.name)
+        .accessibilityValue(isOn ? "Active" : "Hidden")
     }
 }
 

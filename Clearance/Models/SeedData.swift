@@ -12,17 +12,25 @@ import SwiftData
 
 enum SeedData {
 
-    private static let currentVersion = 8
+    private static let currentVersion = 10
     private static let versionKey = "Clearance.seedVersion.v1"
 
     // MARK: - Entry point
 
     @MainActor
-    static func seedIfNeeded(in context: ModelContext) {
+    static func seedIfNeeded(in context: ModelContext, scheduleStore: ScheduleStore) {
         let storedVersion = UserDefaults.standard.integer(forKey: versionKey)
         guard storedVersion < currentVersion else { return }
 
-        let store = ScheduleStore()
+        // Remove deprecated module types that are no longer part of the app.
+        let deprecatedNames: Set<String> = ["Work", "Study", "Cooking", "Leisure"]
+        let allExisting = (try? context.fetch(FetchDescriptor<ActivityModule>())) ?? []
+        for module in allExisting where deprecatedNames.contains(module.name) {
+            let items = (try? context.fetch(FetchDescriptor<ChecklistItem>())) ?? []
+            items.filter { $0.associatedModule == module.id.uuidString }.forEach { context.delete($0) }
+            context.delete(module)
+        }
+        try? context.save()
 
         // Index existing modules by name so user-created modules survive.
         let existingModules = (try? context.fetch(FetchDescriptor<ActivityModule>())) ?? []
@@ -38,9 +46,10 @@ enum SeedData {
 
         for seedModule in defaultModules() {
             if let existing = existingByName[seedModule.name] {
-                // Keep existing UUID; sync sortOrder and emoji to latest seed values.
+                // Keep existing UUID; sync sortOrder, emoji, and lock status to latest seed values.
                 existing.sortOrder = seedModule.sortOrder
                 existing.emoji = seedModule.emoji
+                existing.isLocked = seedModule.isLocked
                 resolvedModules.append(existing)
             } else {
                 context.insert(seedModule)
@@ -59,9 +68,17 @@ enum SeedData {
 
         // Enable any newly-inserted optional modules without touching existing prefs.
         if !newOptionalIDs.isEmpty {
-            let current = store.loadEnabledModuleIDs()
+            let current = scheduleStore.loadEnabledModuleIDs()
                 ?? Set(resolvedModules.filter { !$0.isCore }.map { $0.id })
-            store.saveEnabledModuleIDs(current.union(newOptionalIDs))
+            scheduleStore.saveEnabledModuleIDs(current.union(newOptionalIDs))
+
+            // Schedule the Rest module on Sunday by default.
+            if let rest = resolvedModules.first(where: { $0.name == "Rest" }),
+               newOptionalIDs.contains(rest.id) {
+                var schedule = scheduleStore.loadSchedule()
+                schedule[.sunday, default: []].insert(rest.id)
+                scheduleStore.saveSchedule(schedule)
+            }
         }
 
         UserDefaults.standard.set(currentVersion, forKey: versionKey)
@@ -78,6 +95,7 @@ enum SeedData {
             ActivityModule(name: "Cycling", emoji: "🚴", sortOrder: 4),
             ActivityModule(name: "Running", emoji: "🏃", sortOrder: 5),
             ActivityModule(name: "Yoga",    emoji: "🧘", sortOrder: 6),
+            ActivityModule(name: "Rest",    emoji: "🚶", sortOrder: 7, isLocked: true),
         ]
     }
 
@@ -95,6 +113,7 @@ enum SeedData {
         let cycling = modules.first(where: { $0.name == "Cycling" })
         let running = modules.first(where: { $0.name == "Running" })
         let yoga    = modules.first(where: { $0.name == "Yoga" })
+        let rest    = modules.first(where: { $0.name == "Rest" })
 
         var items: [ChecklistItem] = []
 
@@ -483,6 +502,33 @@ enum SeedData {
             ],
             checklist: .evening, module: yoga,
             phase: "Post-Session Unload & Reset — Evening Return", phaseIndex: 1
+        )
+
+        // ─────────────────────────────────────────
+        // 🚶  MORNING — Walking
+        // ─────────────────────────────────────────
+
+        add(
+            [
+                "Lace up walking shoes",
+                "Plan your walking route (aim for 30–60 min)",
+                "Grab water bottle",
+            ],
+            checklist: .morning, module: rest,
+            phase: "Active Recovery Check", phaseIndex: 0
+        )
+
+        // ─────────────────────────────────────────
+        // 🚶  EVENING — Walking
+        // ─────────────────────────────────────────
+
+        add(
+            [
+                "Track distance walked (Health app or watch)",
+                "Stretch calves and hamstrings (5 min)",
+            ],
+            checklist: .evening, module: rest,
+            phase: "Walk Debrief", phaseIndex: 1
         )
 
         return items

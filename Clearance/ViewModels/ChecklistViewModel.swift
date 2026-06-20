@@ -75,11 +75,15 @@ final class ChecklistViewModel {
         didSet { scheduleStore.saveResetHour(resetHour) }
     }
 
+    /// Weekly and monthly recurring tasks (laundry, budget, etc.).
+    private(set) var periodicTasks: [PeriodicTask] = []
+
     // MARK: - Dependencies
 
     @ObservationIgnored private let modelContext: ModelContext
     @ObservationIgnored private let haptics: HapticsManager
     @ObservationIgnored private let scheduleStore: ScheduleStore
+    @ObservationIgnored private let periodicStore: PeriodicTaskStore
     @ObservationIgnored private var overrides: [String: Set<UUID>] = [:]
 
     // MARK: - Init
@@ -89,25 +93,26 @@ final class ChecklistViewModel {
         self.haptics = haptics
         let store = ScheduleStore()
         self.scheduleStore = store
-        self.weeklySchedule = store.loadSchedule()
+        self.periodicStore = PeriodicTaskStore()
         self.overrides = store.loadOverrides()
         self.resetHour = store.loadResetHour()
-        SeedData.seedIfNeeded(in: modelContext)
+        SeedData.seedIfNeeded(in: modelContext, scheduleStore: store)
+        // Reload schedule after seeding — Rest may have been seeded with Sunday.
+        self.weeklySchedule = store.loadSchedule()
         reloadModules()
         reloadItems()
-        // Initialise enabled modules, guarding against stale UUIDs from a prior seed.
+        // Restore saved activation state; default to all-enabled on first launch.
         let optionalIDs = Set(allModules.filter(\.isOptional).map(\.id))
         if let saved = store.loadEnabledModuleIDs() {
             let validIDs = saved.intersection(optionalIDs)
-            // If every saved ID is stale (e.g. after a re-seed created new UUIDs),
-            // fall back to all optional modules enabled.
             self.enabledModuleIDs = (validIDs.isEmpty && !optionalIDs.isEmpty) ? optionalIDs : validIDs
-            store.saveEnabledModuleIDs(self.enabledModuleIDs)
         } else {
             self.enabledModuleIDs = optionalIDs
-            store.saveEnabledModuleIDs(self.enabledModuleIDs)
         }
+        store.saveEnabledModuleIDs(self.enabledModuleIDs)
         recomputeActivities()
+        periodicStore.seedDefaultsIfNeeded()
+        periodicTasks = periodicStore.load()
         haptics.prepare()
     }
 
@@ -116,7 +121,7 @@ final class ChecklistViewModel {
     /// All optional modules, in display order.
     var optionalModules: [ActivityModule] { allModules.filter(\.isOptional) }
 
-    /// Optional modules the user has enabled, in display order.
+    /// Optional modules the user has activated (visible in checklist + weekly plan).
     var enabledModules: [ActivityModule] { optionalModules.filter { enabledModuleIDs.contains($0.id) } }
 
     /// The one permanent Core module.
@@ -213,6 +218,7 @@ final class ChecklistViewModel {
     func refresh() {
         checkAutoReset()
         recomputeActivities()
+        periodicTasks = periodicStore.load()
     }
 
     private func checkAutoReset() {
@@ -309,15 +315,31 @@ final class ChecklistViewModel {
         allModules = (try? modelContext.fetch(descriptor)) ?? []
     }
 
-    func addModule(name: String, emoji: String) {
+    func addModule(name: String, emoji: String, activityType: ActivityType = .sport) {
         let sortOrder = (allModules.map(\.sortOrder).max() ?? 0) + 1
-        let module = ActivityModule(name: name, emoji: emoji, sortOrder: sortOrder)
+        let module = ActivityModule(name: name, emoji: emoji, sortOrder: sortOrder, activityType: activityType)
         modelContext.insert(module)
         save()
         reloadModules()
         enabledModuleIDs.insert(module.id)
         scheduleStore.saveEnabledModuleIDs(enabledModuleIDs)
         haptics.moduleToggled()
+    }
+
+    func isTemplateInstalled(_ entry: TemplateEntry) -> Bool {
+        allModules.contains { $0.name == entry.name }
+    }
+
+    func installTemplate(_ entry: TemplateEntry) {
+        guard !isTemplateInstalled(entry) else { return }
+        addModule(name: entry.name, emoji: entry.emoji, activityType: entry.activityType)
+        guard let module = allModules.first(where: { $0.name == entry.name }) else { return }
+        for item in SeedData.defaultItems(modules: allModules)
+            where item.associatedModule == module.id.uuidString {
+            modelContext.insert(item)
+        }
+        save()
+        reloadItems()
     }
 
     func updateModule(_ module: ActivityModule, name: String, emoji: String) {
@@ -343,7 +365,7 @@ final class ChecklistViewModel {
     }
 
     func deleteModule(_ module: ActivityModule) {
-        guard module.isOptional else { return }
+        guard module.isOptional && !module.isLocked else { return }
         enabledModuleIDs.remove(module.id)
         for key in weeklySchedule.keys { weeklySchedule[key]?.remove(module.id) }
         for key in overrides.keys { overrides[key]?.remove(module.id) }
@@ -427,6 +449,14 @@ final class ChecklistViewModel {
         reloadModules()
     }
 
+    func moveUnlockedModule(from source: IndexSet, to destination: Int) {
+        var mutable = optionalModules.filter { !$0.isLocked }
+        mutable.move(fromOffsets: source, toOffset: destination)
+        for (idx, module) in mutable.enumerated() { module.sortOrder = idx + 1 }
+        save()
+        reloadModules()
+    }
+
     // MARK: - Toggle / skip / reset
 
     func toggle(_ item: ChecklistItem) {
@@ -460,6 +490,31 @@ final class ChecklistViewModel {
         save()
         if !silent { haptics.reset() }
         reloadItems()
+    }
+
+    // MARK: - Periodic tasks (weekly / monthly)
+
+    var weeklyTasks: [PeriodicTask]  { periodicTasks.filter { $0.recurrence == .weekly } }
+    var monthlyTasks: [PeriodicTask] { periodicTasks.filter { $0.recurrence == .monthly } }
+
+    func addPeriodicTask(title: String, emoji: String = "📋", recurrence: Recurrence) {
+        periodicTasks.append(PeriodicTask(title: title, emoji: emoji, recurrence: recurrence))
+        periodicStore.save(periodicTasks)
+        haptics.taskToggled(completed: false)
+    }
+
+    func togglePeriodicTask(_ task: PeriodicTask) {
+        guard let i = periodicTasks.firstIndex(where: { $0.id == task.id }) else { return }
+        periodicTasks[i].isCompleted.toggle()
+        periodicTasks[i].completedDate = periodicTasks[i].isCompleted ? Date() : nil
+        periodicStore.save(periodicTasks)
+        haptics.taskToggled(completed: periodicTasks[i].isCompleted)
+    }
+
+    func deletePeriodicTask(_ task: PeriodicTask) {
+        periodicTasks.removeAll { $0.id == task.id }
+        periodicStore.save(periodicTasks)
+        haptics.skipped()
     }
 
     // MARK: - Persistence plumbing
