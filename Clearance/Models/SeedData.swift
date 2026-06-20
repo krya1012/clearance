@@ -12,7 +12,7 @@ import SwiftData
 
 enum SeedData {
 
-    private static let currentVersion = 10
+    private static let currentVersion = 11
     private static let versionKey = "Clearance.seedVersion.v1"
 
     // MARK: - Entry point
@@ -29,6 +29,14 @@ enum SeedData {
             let items = (try? context.fetch(FetchDescriptor<ChecklistItem>())) ?? []
             items.filter { $0.associatedModule == module.id.uuidString }.forEach { context.delete($0) }
             context.delete(module)
+        }
+        try? context.save()
+
+        // Rename "Rest" → "Walking" and remove locked status.
+        let allAfterCleanup = (try? context.fetch(FetchDescriptor<ActivityModule>())) ?? []
+        if let rest = allAfterCleanup.first(where: { $0.name == "Rest" }) {
+            rest.name = "Walking"
+            rest.isLocked = false
         }
         try? context.save()
 
@@ -72,11 +80,11 @@ enum SeedData {
                 ?? Set(resolvedModules.filter { !$0.isCore }.map { $0.id })
             scheduleStore.saveEnabledModuleIDs(current.union(newOptionalIDs))
 
-            // Schedule the Rest module on Sunday by default.
-            if let rest = resolvedModules.first(where: { $0.name == "Rest" }),
-               newOptionalIDs.contains(rest.id) {
+            // Schedule Walking on Sunday by default.
+            if let walking = resolvedModules.first(where: { $0.name == "Walking" }),
+               newOptionalIDs.contains(walking.id) {
                 var schedule = scheduleStore.loadSchedule()
-                schedule[.sunday, default: []].insert(rest.id)
+                schedule[.sunday, default: []].insert(walking.id)
                 scheduleStore.saveSchedule(schedule)
             }
         }
@@ -95,7 +103,7 @@ enum SeedData {
             ActivityModule(name: "Cycling", emoji: "🚴", sortOrder: 4),
             ActivityModule(name: "Running", emoji: "🏃", sortOrder: 5),
             ActivityModule(name: "Yoga",    emoji: "🧘", sortOrder: 6),
-            ActivityModule(name: "Rest",    emoji: "🚶", sortOrder: 7, isLocked: true),
+            ActivityModule(name: "Walking", emoji: "🚶", sortOrder: 7),
         ]
     }
 
@@ -113,7 +121,7 @@ enum SeedData {
         let cycling = modules.first(where: { $0.name == "Cycling" })
         let running = modules.first(where: { $0.name == "Running" })
         let yoga    = modules.first(where: { $0.name == "Yoga" })
-        let rest    = modules.first(where: { $0.name == "Rest" })
+        let walking = modules.first(where: { $0.name == "Walking" })
 
         var items: [ChecklistItem] = []
 
@@ -514,7 +522,7 @@ enum SeedData {
                 "Plan your walking route (aim for 30–60 min)",
                 "Grab water bottle",
             ],
-            checklist: .morning, module: rest,
+            checklist: .morning, module: walking,
             phase: "Active Recovery Check", phaseIndex: 0
         )
 
@@ -527,7 +535,7 @@ enum SeedData {
                 "Track distance walked (Health app or watch)",
                 "Stretch calves and hamstrings (5 min)",
             ],
-            checklist: .evening, module: rest,
+            checklist: .evening, module: walking,
             phase: "Walk Debrief", phaseIndex: 1
         )
 

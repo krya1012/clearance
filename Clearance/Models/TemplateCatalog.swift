@@ -28,7 +28,7 @@ enum TemplateCatalog {
         .init(name: "Cycling", emoji: "🚴",  activityType: .sport, frequency: .weekly, tagline: "Bike check and lights charged"),
         .init(name: "Running", emoji: "🏃",  activityType: .sport, frequency: .weekly, tagline: "Stride pack laid out the night before"),
         .init(name: "Yoga",    emoji: "🧘",  activityType: .sport, frequency: .weekly, tagline: "Mat and props ready to flow"),
-        .init(name: "Rest",    emoji: "🚶",  activityType: .sport, frequency: .weekly, tagline: "Active recovery — walk and stretch"),
+        .init(name: "Walking", emoji: "🚶",  activityType: .sport, frequency: .weekly, tagline: "Active recovery — walk and stretch"),
     ]
 }
 
