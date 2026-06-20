@@ -46,7 +46,7 @@ struct DashboardView: View {
             }
             .padding(.top, 8)
         }
-        .preferredColorScheme(viewModel.selectedChecklist == .evening ? .dark : nil)
+        .preferredColorScheme(nil)
         .animation(
             reduceMotion ? nil : Theme.Motion.spring,
             value: viewModel.selectedChecklist

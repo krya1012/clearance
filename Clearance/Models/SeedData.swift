@@ -12,7 +12,7 @@ import SwiftData
 
 enum SeedData {
 
-    private static let currentVersion = 11
+    private static let currentVersion = 12
     private static let versionKey = "Clearance.seedVersion.v1"
 
     // MARK: - Entry point
@@ -198,7 +198,6 @@ enum SeedData {
             [
                 "Status Check: Confirm the Gym 'Dry-Pack' was packed last night",
                 "Hydration: Fill water bottle / shaker with cold water and stow it",
-                "Fuel: Add a pre-workout snack (banana, bar) or supplement scoop",
                 "Power: Confirm headphones and fitness tracker are charged",
                 "Access: Confirm Gym Membership Card / Key Fob is in the bag",
                 "Grab the Gym 'Dry-Pack' on your way out the door",
@@ -292,7 +291,7 @@ enum SeedData {
                 "Hygiene Barrier: Pack 1 small microfiber towel (to layer over gym benches)",
                 "Electronics: Pack wireless headphones (verify battery is charged) and fitness tracker",
                 "Access: Place Gym Membership Card / Key Fob into the bag's secure pocket",
-                "Nutrition/Hydration: Prep water bottle or shaker with pre-measured supplement powder",
+                "Nutrition/Hydration: Prep water bottle or shaker with cold water",
             ],
             checklist: .evening, module: gym,
             phase: "Collect & Pack — Evening Before", phaseIndex: 0
@@ -300,6 +299,7 @@ enum SeedData {
 
         add(
             [
+                "Supplements: Take post-workout recovery supplement (creatine, protein, magnesium)",
                 "Laundry Strip: Extract sweaty t-shirt, shorts, and socks → drop directly into the laundry bin",
                 "Towel Extraction: Remove the used bench towel → place in laundry",
                 "Footwear Airing: Take out training sneakers → place on an open rack to air out",
