@@ -36,6 +36,12 @@ final class ScheduleStore {
 
     // MARK: - Weekly schedule  ([Weekday: Set<UUID>])
 
+    /// True when the weekly-schedule blob exists but fails to decode — see
+    /// `isPersistedDataCorrupted`.
+    func isScheduleDataCorrupted() -> Bool {
+        isPersistedDataCorrupted([String: [String]].self, forKey: scheduleKey, in: defaults)
+    }
+
     func loadSchedule() -> [Weekday: Set<UUID>] {
         guard
             let data = defaults.data(forKey: scheduleKey),
@@ -60,6 +66,11 @@ final class ScheduleStore {
 
     // MARK: - Per-day overrides  ([dateKey: Set<UUID>])
 
+    /// True when the per-day-overrides blob exists but fails to decode.
+    func isOverridesDataCorrupted() -> Bool {
+        isPersistedDataCorrupted([String: [String]].self, forKey: overridesKey, in: defaults)
+    }
+
     func loadOverrides() -> [String: Set<UUID>] {
         guard
             let data = defaults.data(forKey: overridesKey),
@@ -76,6 +87,11 @@ final class ScheduleStore {
     }
 
     // MARK: - Enabled module IDs
+
+    /// True when the enabled-modules blob exists but fails to decode.
+    func isEnabledModuleIDsDataCorrupted() -> Bool {
+        isPersistedDataCorrupted([String].self, forKey: enabledModulesKey, in: defaults)
+    }
 
     /// Returns `nil` when the key has never been written (first launch — caller
     /// should default to enabling all optional modules).

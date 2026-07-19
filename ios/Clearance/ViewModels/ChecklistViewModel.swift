@@ -94,15 +94,28 @@ final class ChecklistViewModel {
         let store = ScheduleStore()
         self.scheduleStore = store
         self.periodicStore = PeriodicTaskStore()
+        // No sane default to recover a corrupted personal schedule/overrides
+        // to (unlike SeedData/PeriodicTaskStore, which can reseed canonical
+        // content) — at minimum, surface it in device logs instead of
+        // staying completely silent about the user's data having vanished.
+        if store.isOverridesDataCorrupted() {
+            persistenceLogger.error("activityOverrides blob is corrupted — treating as empty")
+        }
         self.overrides = store.loadOverrides()
         self.resetHour = store.loadResetHour()
         SeedData.seedIfNeeded(in: modelContext, scheduleStore: store)
         // Reload schedule after seeding — Rest may have been seeded with Sunday.
+        if store.isScheduleDataCorrupted() {
+            persistenceLogger.error("weeklySchedule blob is corrupted — treating as empty")
+        }
         self.weeklySchedule = store.loadSchedule()
         reloadModules()
         reloadItems()
         // Restore saved activation state; default to all-enabled on first launch.
         let optionalIDs = Set(allModules.filter(\.isOptional).map(\.id))
+        if store.isEnabledModuleIDsDataCorrupted() {
+            persistenceLogger.error("enabledModules blob is corrupted — falling back to all-enabled")
+        }
         if let saved = store.loadEnabledModuleIDs() {
             let validIDs = saved.intersection(optionalIDs)
             self.enabledModuleIDs = (validIDs.isEmpty && !optionalIDs.isEmpty) ? optionalIDs : validIDs

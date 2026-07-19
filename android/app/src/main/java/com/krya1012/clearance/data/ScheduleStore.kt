@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.krya1012.clearance.domain.isPersistedDataCorrupted
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -38,6 +39,10 @@ class ScheduleStore(private val context: Context) {
 
     // MARK: - Weekly schedule (Map<Weekday.rawValue, Set<moduleId>>)
 
+    /** True when the weekly-schedule blob exists but fails to decode. */
+    suspend fun isScheduleDataCorrupted(): Boolean =
+        isPersistedDataCorrupted<Map<String, List<String>>>(context.clearanceDataStore.data.first()[Keys.SCHEDULE])
+
     suspend fun loadSchedule(): Map<Weekday, Set<String>> {
         val raw = context.clearanceDataStore.data.first()[Keys.SCHEDULE] ?: return emptyMap()
         val decoded = runCatching { Json.decodeFromString<Map<String, List<String>>>(raw) }.getOrNull()
@@ -56,6 +61,10 @@ class ScheduleStore(private val context: Context) {
 
     // MARK: - Per-day overrides (Map<dateKey, Set<moduleId>>)
 
+    /** True when the per-day-overrides blob exists but fails to decode. */
+    suspend fun isOverridesDataCorrupted(): Boolean =
+        isPersistedDataCorrupted<Map<String, List<String>>>(context.clearanceDataStore.data.first()[Keys.OVERRIDES])
+
     suspend fun loadOverrides(): Map<String, Set<String>> {
         val raw = context.clearanceDataStore.data.first()[Keys.OVERRIDES] ?: return emptyMap()
         val decoded = runCatching { Json.decodeFromString<Map<String, List<String>>>(raw) }.getOrNull()
@@ -70,6 +79,10 @@ class ScheduleStore(private val context: Context) {
     }
 
     // MARK: - Enabled module IDs
+
+    /** True when the enabled-modules blob exists but fails to decode. */
+    suspend fun isEnabledModuleIDsDataCorrupted(): Boolean =
+        isPersistedDataCorrupted<List<String>>(context.clearanceDataStore.data.first()[Keys.ENABLED_MODULES])
 
     /** Returns `null` when never written — caller should default to enabling all optional modules. */
     suspend fun loadEnabledModuleIDs(): Set<String>? {

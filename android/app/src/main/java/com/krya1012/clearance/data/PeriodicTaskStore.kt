@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.krya1012.clearance.domain.isPersistedDataCorrupted
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -30,7 +31,8 @@ class PeriodicTaskStore(private val context: Context) {
         // otherwise a decode failure would silently look like "already seeded"
         // forever and the next save() would permanently overwrite it with
         // whatever the corrupted read decoded to (nothing).
-        if (stored >= CURRENT_SEED_VERSION && !isStoredDataCorrupted()) return
+        val raw = context.clearanceDataStore.data.first()[Keys.TASKS]
+        if (stored >= CURRENT_SEED_VERSION && !isPersistedDataCorrupted<List<PeriodicTask>>(raw)) return
 
         val existing = load()
         val existingTitles = existing.map { it.title }.toSet()
@@ -72,15 +74,5 @@ class PeriodicTaskStore(private val context: Context) {
     suspend fun save(tasks: List<PeriodicTask>) {
         val encoded = Json.encodeToString(tasks)
         context.clearanceDataStore.edit { it[Keys.TASKS] = encoded }
-    }
-
-    /**
-     * True when a periodic-tasks blob exists but fails to decode — distinct
-     * from "no data yet" (key absent) or "user cleared everything" (decodes
-     * fine to an empty list), neither of which should trigger a reseed.
-     */
-    private suspend fun isStoredDataCorrupted(): Boolean {
-        val raw = context.clearanceDataStore.data.first()[Keys.TASKS] ?: return false
-        return runCatching { Json.decodeFromString<List<PeriodicTask>>(raw) }.getOrNull() == null
     }
 }

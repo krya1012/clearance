@@ -224,6 +224,13 @@ val validIDs = saved.intersect(optionalIDs)
 enabledModuleIDs = if (validIDs.isEmpty() && optionalIDs.isNotEmpty()) optionalIDs else validIDs
 ```
 
+**Corruption diagnostics:** `ScheduleStore` exposes `isScheduleDataCorrupted()` /
+`isOverridesDataCorrupted()` / `isEnabledModuleIDsDataCorrupted()` — true when a blob is present
+but fails to decode, distinct from "never configured" (`null`/absent). There's no sane default
+to recover a corrupted personal schedule to (unlike `SeedData`, which can reseed canonical
+content), so the ViewModel should at minimum log via `Log.w`/a crash-reporting hook when these
+return `true`, rather than silently treating corruption as "user has no schedule configured."
+
 **Auto-reset** — called on every `onResume` equivalent (via `Lifecycle.Event.ON_RESUME`):
 compare `lastAutoReset` epoch vs today's `resetHour` threshold; if passed, call `resetAll(silent=true)`.
 
