@@ -210,6 +210,19 @@ class ChecklistViewModel(
 }
 ```
 
+**Design risk — build `sections` from one `combine()`, not several layered ones.** If
+`todayActivityIDs`/`tomorrowActivityIDs` and `sections` are each their own independently-combined
+`StateFlow` (one `combine()` producing `todayActivityIDs`, a second `combine()` consuming it to
+produce `sections`, etc.), there's a real state-consistency window iOS's design doesn't have:
+toggling `enabledModuleIDs` can be observed by the `sections` combine-tick before the
+`todayActivityIDs` combine-tick has re-emitted from the same toggle, producing a one-frame flash
+of a just-disabled module's tasks. iOS's `recomputeActivities()` is a single synchronous function
+that updates both `todayActivityIDs` and `tomorrowActivityIDs` atomically before any view state
+reads them. Recommend one `combine(allModules, allItems, selectedChecklist, enabledModuleIDs,
+weeklySchedule, activityOverrides) { ... }` computing `todayActivityIDs`/`tomorrowActivityIDs`/
+`sections` together in a single lambda, rather than chaining separate `combine()` calls — mirrors
+iOS's atomicity instead of reintroducing Flow-combination's inherent per-source-emission timing.
+
 **Activity gating** mirrors iOS exactly:
 - `todayActivityIDs` = `overrides[todayKey] ?: weeklySchedule[Calendar.DAY_OF_WEEK]`, intersected with `enabledModuleIDs`
 - `tomorrowActivityIDs` = same for tomorrow's date
@@ -224,6 +237,16 @@ val validIDs = saved.intersect(optionalIDs)
 enabledModuleIDs = if (validIDs.isEmpty() && optionalIDs.isNotEmpty()) optionalIDs else validIDs
 ```
 
+**Design risk — this reads `allModules` synchronously, but `allModules` is a `StateFlow` sourced
+from `moduleDao.observeAll()`'s `Flow`, which may not have emitted its first (seeded) value yet
+when `init` runs.** Unlike iOS, where `reloadModules()` is a synchronous `try? modelContext.fetch`
+guaranteed complete before this reconciliation reads `allModules`, a naive Kotlin port reading
+`allModules.value` (or an un-awaited snapshot) at an arbitrary point in `init` could see the
+`StateFlow`'s initial empty list, computing `optionalIDs = emptySet()` and disabling every module.
+Recommend gating this reconciliation on `allModules.first { it.isNotEmpty() }` (or an explicit
+"seeding complete" signal from `SeedData.seedIfNeeded`) before running it, rather than reading
+`.value` directly.
+
 **Corruption diagnostics:** `ScheduleStore` exposes `isScheduleDataCorrupted()` /
 `isOverridesDataCorrupted()` / `isEnabledModuleIDsDataCorrupted()` — true when a blob is present
 but fails to decode, distinct from "never configured" (`null`/absent). There's no sane default
@@ -233,6 +256,18 @@ return `true`, rather than silently treating corruption as "user has no schedule
 
 **Auto-reset** — called on every `onResume` equivalent (via `Lifecycle.Event.ON_RESUME`):
 compare `lastAutoReset` epoch vs today's `resetHour` threshold; if passed, call `resetAll(silent=true)`.
+
+**Known, accepted limitation — calendar-system parity.** `domain/AutoReset.kt`'s
+`Calendar.getInstance(zone)` takes only a `TimeZone`, no `Locale`, and implicitly uses
+`Locale.getDefault()`'s calendar system — Java's calendar dispatch special-cases only a handful
+of locales (historically Thai→Buddhist) and defaults to Gregorian for everything else. iOS's
+`Calendar.current` honors the device's Region-settings calendar system far more broadly (Islamic,
+Hebrew, Persian, ROC, Coptic, Ethiopic, etc.), so a user with a non-Gregorian calendar system set
+could see the auto-reset threshold computed differently cross-platform. A real fix would need
+ICU4J (`android.icu.util.Calendar`) or similar — a new dependency — for a niche impact (only
+users who've set a non-Gregorian calendar system *and* rely on exact auto-reset-hour timing).
+**Decision: accept this as a known platform limitation rather than adding a dependency to close
+it.**
 
 **Restore default tasks**:
 ```kotlin
