@@ -50,7 +50,7 @@ class ClearanceApplication : Application() {
      */
     private suspend fun seedWithRecovery() {
         try {
-            SeedData.seedIfNeeded(this, database.moduleDao(), database.itemDao(), scheduleStore)
+            SeedData.seedIfNeeded(this, database, scheduleStore)
         } catch (e: Exception) {
             database.close()
             deleteDatabase(ClearanceDatabase.DB_NAME)
@@ -60,7 +60,7 @@ class ClearanceApplication : Application() {
             // clear them rather than leaving them to silently resolve to
             // nothing, same reasoning as iOS's equivalent recovery path.
             scheduleStore.clearModuleKeys()
-            SeedData.seedIfNeeded(this, database.moduleDao(), database.itemDao(), scheduleStore)
+            SeedData.seedIfNeeded(this, database, scheduleStore)
         }
     }
 }

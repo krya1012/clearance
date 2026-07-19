@@ -1,191 +1,146 @@
-//
-//  SeedData.swift
-//  Clearance
-//
-//  Versioned seed data. Bump `currentVersion` whenever the canonical checklist
-//  content changes — on next launch the old items and modules are deleted and
-//  a fresh canonical set is inserted.
-//
+package com.krya1012.clearance.domain
 
-import Foundation
-import SwiftData
+import com.krya1012.clearance.data.ActivityModule
+import com.krya1012.clearance.data.ChecklistItem
+import com.krya1012.clearance.data.ChecklistType
 
-enum SeedData {
+/**
+ * Pure decision logic and canonical seed content for the first-launch /
+ * version-bump migration — no Room/DataStore/Compose dependency, so it's
+ * independent and unit-testable like `ActivityGating`/`AutoReset`.
+ * `data/SeedData.kt` executes the plan this produces against Room/DataStore.
+ * Mirrors iOS `SeedData.swift`.
+ */
+object SeedMigrationPlan {
 
-    private static let currentVersion = 12
-    private static let versionKey = "Clearance.seedVersion.v1"
+    const val CURRENT_VERSION = 12
 
-    /// One-time migrations below are gated to the specific version they were
-    /// introduced at, not to `storedVersion < currentVersion` generally —
-    /// otherwise every future version bump would re-run them against
-    /// whatever modules exist *then*, including ones a user created after
-    /// the migration already ran once (e.g. deleting a user's own module
-    /// named "Study" on a later, unrelated bump).
-    private static let deprecatedModuleCleanupVersion = 10
-    private static let restToWalkingRenameVersion = 11
+    // One-time migrations below are gated to the specific version they were
+    // introduced at, not to `storedVersion < CURRENT_VERSION` generally —
+    // otherwise every future version bump would re-run them against whatever
+    // modules exist *then*, including ones a user created after the
+    // migration already ran once (e.g. deleting a user's own module named
+    // "Study" on a later, unrelated bump).
+    const val DEPRECATED_MODULE_CLEANUP_VERSION = 10
+    const val REST_TO_WALKING_RENAME_VERSION = 11
 
-    // MARK: - Entry point
+    private val DEPRECATED_MODULE_NAMES = setOf("Work", "Study", "Cooking", "Leisure")
 
-    @MainActor
-    static func seedIfNeeded(in context: ModelContext, scheduleStore: ScheduleStore) {
-        let storedVersion = UserDefaults.standard.integer(forKey: versionKey)
-        // The version key lives in UserDefaults, entirely independent of which
-        // store is actually active. If the persistent store ever fails to open
-        // (see ClearanceApp.init's in-memory fallback) *after* seedVersion was
-        // already written from an earlier successful run, storedVersion looks
-        // "already migrated" even though the fresh in-memory store has zero
-        // modules — so also reseed whenever there are no modules at all. Core
-        // is never deletable by the user (`deleteModule` guards on
-        // `isOptional`), so "zero modules" can only mean a genuinely fresh
-        // store, never an intentional user state.
-        let hasNoModules = ((try? context.fetch(FetchDescriptor<ActivityModule>())) ?? []).isEmpty
-        guard storedVersion < currentVersion || hasNoModules else { return }
-
-        if hasNoModules {
-            // Any saved schedule/override/enabled-module UUIDs necessarily
-            // reference modules that no longer exist in this fresh store —
-            // clear them rather than leaving them to silently resolve to
-            // nothing (a no-op on a genuinely first-ever launch, since
-            // there's nothing stored yet either).
-            scheduleStore.clearModuleKeys()
-        }
-
-        // Remove deprecated module types that are no longer part of the app.
-        // Only for installs migrating across the version that introduced this
-        // cleanup — never again afterward, so a user's own later module
-        // reusing one of these names is never touched.
-        if storedVersion < deprecatedModuleCleanupVersion {
-            let deprecatedNames: Set<String> = ["Work", "Study", "Cooking", "Leisure"]
-            let allExisting = (try? context.fetch(FetchDescriptor<ActivityModule>())) ?? []
-            for module in allExisting where deprecatedNames.contains(module.name) {
-                let items = (try? context.fetch(FetchDescriptor<ChecklistItem>())) ?? []
-                items.filter { $0.associatedModule == module.id.uuidString }.forEach { context.delete($0) }
-                context.delete(module)
-            }
-        }
-
-        // Rename "Rest" → "Walking" and remove locked status. Only for
-        // installs migrating across the version that introduced this rename.
-        if storedVersion < restToWalkingRenameVersion {
-            // Fetch sees this context's own pending (unsaved) deletes from
-            // the cleanup block above — SwiftData/Core Data contexts are a
-            // unit of work, not a save-then-reread cycle.
-            let allAfterCleanup = (try? context.fetch(FetchDescriptor<ActivityModule>())) ?? []
-            if let rest = allAfterCleanup.first(where: { $0.name == "Rest" }) {
-                rest.name = "Walking"
-                rest.isLocked = false
-            }
-        }
-
-        // Index existing modules by name so user-created modules survive.
-        let existingModules = (try? context.fetch(FetchDescriptor<ActivityModule>())) ?? []
-        let existingByName = Dictionary(uniqueKeysWithValues: existingModules.map { ($0.name, $0) })
-
-        // Track which module UUIDs already have at least one task.
-        let existingItems = (try? context.fetch(FetchDescriptor<ChecklistItem>())) ?? []
-        let modulesWithItems = Set(existingItems.map { $0.associatedModule })
-
-        // For each seed module: reuse existing (same name) or insert new.
-        var resolvedModules: [ActivityModule] = []
-        var newOptionalIDs: Set<UUID> = []
-
-        for seedModule in defaultModules() {
-            if let existing = existingByName[seedModule.name] {
-                // Keep existing UUID; sync sortOrder, emoji, and lock status to latest seed values.
-                existing.sortOrder = seedModule.sortOrder
-                existing.emoji = seedModule.emoji
-                existing.isLocked = seedModule.isLocked
-                resolvedModules.append(existing)
-            } else {
-                context.insert(seedModule)
-                resolvedModules.append(seedModule)
-                if !seedModule.isCore { newOptionalIDs.insert(seedModule.id) }
-            }
-        }
-
-        // Insert seed items only for modules that currently have no items.
-        // A module's `id` is a locally-generated UUID available immediately
-        // on construction, not assigned on save, so referencing
-        // `module.id.uuidString` here for not-yet-saved modules is safe.
-        for item in defaultItems(modules: resolvedModules)
-            where !modulesWithItems.contains(item.associatedModule) {
-            context.insert(item)
-        }
-
-        // One atomic save for the whole migration (cleanup + rename +
-        // module resolution + item insertion) instead of four independent
-        // saves — a kill mid-migration can no longer leave e.g. deprecated
-        // modules deleted but Walking not yet renamed/inserted.
-        try? context.save()
-
-        // Enable any newly-inserted optional modules without touching existing prefs.
-        if !newOptionalIDs.isEmpty {
-            let current = scheduleStore.loadEnabledModuleIDs()
-                ?? Set(resolvedModules.filter { !$0.isCore }.map { $0.id })
-            scheduleStore.saveEnabledModuleIDs(current.union(newOptionalIDs))
-
-            // Schedule Walking on Sunday by default.
-            if let walking = resolvedModules.first(where: { $0.name == "Walking" }),
-               newOptionalIDs.contains(walking.id) {
-                var schedule = scheduleStore.loadSchedule()
-                schedule[.sunday, default: []].insert(walking.id)
-                scheduleStore.saveSchedule(schedule)
-            }
-        }
-
-        UserDefaults.standard.set(currentVersion, forKey: versionKey)
+    /**
+     * Modules (from `existingModules`) that should be deleted along with
+     * their items — only for installs migrating across the version that
+     * introduced this cleanup; never again afterward, so a user's own later
+     * module reusing one of these names is never touched.
+     */
+    fun modulesToDeprecate(existingModules: List<ActivityModule>, storedVersion: Int): List<ActivityModule> {
+        if (storedVersion >= DEPRECATED_MODULE_CLEANUP_VERSION) return emptyList()
+        return existingModules.filter { it.name in DEPRECATED_MODULE_NAMES }
     }
+
+    /**
+     * The "Rest" module to rename to "Walking" (and unlock) — only for
+     * installs migrating across the version that introduced this rename.
+     */
+    fun moduleToRename(existingModules: List<ActivityModule>, storedVersion: Int): ActivityModule? {
+        if (storedVersion >= REST_TO_WALKING_RENAME_VERSION) return null
+        return existingModules.firstOrNull { it.name == "Rest" }
+    }
+
+    data class Resolution(
+        val resolvedModules: List<ActivityModule>,
+        val modulesToInsert: List<ActivityModule>,
+        val modulesToUpdate: List<ActivityModule>,
+        val newOptionalIds: Set<String>,
+    )
+
+    /**
+     * Resolves each seed module against `existingByName` (already reflecting
+     * any deprecation/rename above): reuse an existing module's id (with
+     * synced sortOrder/emoji/isLocked) or produce a new one to insert.
+     */
+    fun resolveModules(
+        seedModules: List<ActivityModule>,
+        existingByName: Map<String, ActivityModule>,
+    ): Resolution {
+        val resolved = mutableListOf<ActivityModule>()
+        val toInsert = mutableListOf<ActivityModule>()
+        val toUpdate = mutableListOf<ActivityModule>()
+        val newOptionalIds = mutableSetOf<String>()
+
+        for (seedModule in seedModules) {
+            val existing = existingByName[seedModule.name]
+            if (existing != null) {
+                // Keep existing id; sync sortOrder, emoji, and lock status to latest seed values.
+                val updated = existing.copy(
+                    sortOrder = seedModule.sortOrder,
+                    emoji = seedModule.emoji,
+                    isLocked = seedModule.isLocked,
+                )
+                resolved.add(updated)
+                toUpdate.add(updated)
+            } else {
+                resolved.add(seedModule)
+                toInsert.add(seedModule)
+                if (!seedModule.isCore) newOptionalIds.add(seedModule.id)
+            }
+        }
+
+        return Resolution(resolved, toInsert, toUpdate, newOptionalIds)
+    }
+
+    /** Seed items to insert: only for modules that currently have zero items. */
+    fun itemsToInsert(resolvedModules: List<ActivityModule>, modulesWithItems: Set<String>): List<ChecklistItem> =
+        defaultItems(resolvedModules).filter { it.associatedModule !in modulesWithItems }
 
     // MARK: - Default modules
 
-    static func defaultModules() -> [ActivityModule] {
-        [
-            ActivityModule(name: "Core",    emoji: "🎯", sortOrder: 0, isCore: true),
-            ActivityModule(name: "Gym",     emoji: "🏋️", sortOrder: 1),
-            ActivityModule(name: "Swim",    emoji: "🏊", sortOrder: 2),
-            ActivityModule(name: "Judo",    emoji: "🥋", sortOrder: 3),
-            ActivityModule(name: "Cycling", emoji: "🚴", sortOrder: 4),
-            ActivityModule(name: "Running", emoji: "🏃", sortOrder: 5),
-            ActivityModule(name: "Yoga",    emoji: "🧘", sortOrder: 6),
-            ActivityModule(name: "Walking", emoji: "🚶", sortOrder: 7),
-        ]
-    }
+    fun defaultModules(): List<ActivityModule> = listOf(
+        ActivityModule(name = "Core", emoji = "🎯", sortOrder = 0, isCore = true),
+        ActivityModule(name = "Gym", emoji = "🏋️", sortOrder = 1),
+        ActivityModule(name = "Swim", emoji = "🏊", sortOrder = 2),
+        ActivityModule(name = "Judo", emoji = "🥋", sortOrder = 3),
+        ActivityModule(name = "Cycling", emoji = "🚴", sortOrder = 4),
+        ActivityModule(name = "Running", emoji = "🏃", sortOrder = 5),
+        ActivityModule(name = "Yoga", emoji = "🧘", sortOrder = 6),
+        ActivityModule(name = "Walking", emoji = "🚶", sortOrder = 7),
+    )
 
     // MARK: - Canonical task content
 
-    static func defaultItems(for module: ActivityModule, allModules: [ActivityModule]) -> [ChecklistItem] {
-        defaultItems(modules: allModules).filter { $0.associatedModule == module.id.uuidString }
-    }
+    fun defaultItems(module: ActivityModule, allModules: List<ActivityModule>): List<ChecklistItem> =
+        defaultItems(allModules).filter { it.associatedModule == module.id }
 
-    static func defaultItems(modules: [ActivityModule]) -> [ChecklistItem] {
-        guard let core = modules.first(where: \.isCore) else { return [] }
-        let gym     = modules.first(where: { $0.name == "Gym" })
-        let swim    = modules.first(where: { $0.name == "Swim" })
-        let judo    = modules.first(where: { $0.name == "Judo" })
-        let cycling = modules.first(where: { $0.name == "Cycling" })
-        let running = modules.first(where: { $0.name == "Running" })
-        let yoga    = modules.first(where: { $0.name == "Yoga" })
-        let walking = modules.first(where: { $0.name == "Walking" })
+    fun defaultItems(modules: List<ActivityModule>): List<ChecklistItem> {
+        val core = modules.firstOrNull { it.isCore } ?: return emptyList()
+        val gym = modules.firstOrNull { it.name == "Gym" }
+        val swim = modules.firstOrNull { it.name == "Swim" }
+        val judo = modules.firstOrNull { it.name == "Judo" }
+        val cycling = modules.firstOrNull { it.name == "Cycling" }
+        val running = modules.firstOrNull { it.name == "Running" }
+        val yoga = modules.firstOrNull { it.name == "Yoga" }
+        val walking = modules.firstOrNull { it.name == "Walking" }
 
-        var items: [ChecklistItem] = []
+        val items = mutableListOf<ChecklistItem>()
 
-        func add(
-            _ titles: [String],
+        fun add(
+            titles: List<String>,
             checklist: ChecklistType,
             module: ActivityModule?,
             phase: String,
-            phaseIndex: Int
+            phaseIndex: Int,
         ) {
-            guard let module else { return }
-            for (index, title) in titles.enumerated() {
-                items.append(ChecklistItem(
-                    title: title,
-                    orderIndex: index,
-                    phase: phase,
-                    phaseIndex: phaseIndex,
-                    associatedModule: module.id.uuidString,
-                    associatedChecklist: checklist
-                ))
+            if (module == null) return
+            titles.forEachIndexed { index, title ->
+                items.add(
+                    ChecklistItem(
+                        title = title,
+                        orderIndex = index,
+                        phase = phase,
+                        phaseIndex = phaseIndex,
+                        associatedModule = module.id,
+                        associatedChecklist = checklist,
+                    )
+                )
             }
         }
 
@@ -194,44 +149,44 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Drink 1 full glass of clean water",
                 "Open blinds / let daylight in",
                 "5-minute morning joint mobility stretch",
                 "Wash face & brush teeth",
-            ],
-            checklist: .morning, module: core,
-            phase: "Systems Launch", phaseIndex: 0
+            ),
+            checklist = ChecklistType.MORNING, module = core,
+            phase = "Systems Launch", phaseIndex = 0
         )
 
         add(
-            [
+            listOf(
                 "Eat structured breakfast (complex carbs + protein)",
                 "Take scheduled morning vitamins / supplements",
-            ],
-            checklist: .morning, module: core,
-            phase: "Refueling", phaseIndex: 1
+            ),
+            checklist = ChecklistType.MORNING, module = core,
+            phase = "Refueling", phaseIndex = 1
         )
 
         add(
-            [
+            listOf(
                 "Check weather app & dress in appropriate layers",
                 "Collect pockets loadout: Phone, Wallet, Keys, Headphones",
                 "Grab work / study bag (Laptop, Charger, Documents)",
-            ],
-            checklist: .morning, module: core,
-            phase: "Pre-Exit Avionics", phaseIndex: 2
+            ),
+            checklist = ChecklistType.MORNING, module = core,
+            phase = "Pre-Exit Avionics", phaseIndex = 2
         )
 
         add(
-            [
+            listOf(
                 "Verify stove, iron, and appliances are completely OFF",
                 "Turn off all lights",
                 "Close all windows securely",
                 "Lock the main entry door",
-            ],
-            checklist: .morning, module: core,
-            phase: "Cabin Secure", phaseIndex: 3
+            ),
+            checklist = ChecklistType.MORNING, module = core,
+            phase = "Cabin Secure", phaseIndex = 3
         )
 
         // ─────────────────────────────────────────
@@ -239,15 +194,15 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Status Check: Confirm the Gym 'Dry-Pack' was packed last night",
                 "Hydration: Fill water bottle / shaker with cold water and stow it",
                 "Power: Confirm headphones and fitness tracker are charged",
                 "Access: Confirm Gym Membership Card / Key Fob is in the bag",
                 "Grab the Gym 'Dry-Pack' on your way out the door",
-            ],
-            checklist: .morning, module: gym,
-            phase: "Final Gear Check — Before Exit", phaseIndex: 0
+            ),
+            checklist = ChecklistType.MORNING, module = gym,
+            phase = "Final Gear Check — Before Exit", phaseIndex = 0
         )
 
         // ─────────────────────────────────────────
@@ -255,16 +210,16 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Status Check: Confirm the Swim 'Acwa-Pack' was packed last night",
                 "Optics: Confirm goggles and swim cap are inside the bag",
                 "Access: Confirm Pool Pass / Access Card is inside the bag",
                 "Hydration: Fill water bottle with cold water and stow it",
                 "Dry Layer: Confirm body towel and waterproof dry-bag are packed",
                 "Grab the Swim 'Acwa-Pack' on your way out the door",
-            ],
-            checklist: .morning, module: swim,
-            phase: "Final Gear Check — Before Exit", phaseIndex: 0
+            ),
+            checklist = ChecklistType.MORNING, module = swim,
+            phase = "Final Gear Check — Before Exit", phaseIndex = 0
         )
 
         // ─────────────────────────────────────────
@@ -272,16 +227,16 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Status Check: Confirm the Judo 'Dojo-Pack' was packed last night",
                 "Gi Check: Confirm clean gi (jacket + trousers) and belt are inside",
                 "Footwear: Confirm flip-flops / zori for off-mat walking are packed",
                 "Hydration: Fill water bottle with cold water and stow it",
                 "Access: Confirm club membership / dojo access card is in the bag",
                 "Grab the Judo 'Dojo-Pack' on your way out the door",
-            ],
-            checklist: .morning, module: judo,
-            phase: "Final Gear Check — Before Exit", phaseIndex: 0
+            ),
+            checklist = ChecklistType.MORNING, module = judo,
+            phase = "Final Gear Check — Before Exit", phaseIndex = 0
         )
 
         // ─────────────────────────────────────────
@@ -289,38 +244,38 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Clean the kitchen sink & wipe down workspace",
                 "Check calendar — write down Top 3 tasks for tomorrow",
                 "Run Gym / Swim — Post-Workout Unload (clear out dirty gear)",
                 "Run Gym / Swim — Pre-Packing (pack tomorrow's sports bags)",
                 "Lay out tomorrow's casual / work clothes",
-            ],
-            checklist: .evening, module: core,
-            phase: "Flight Deck Debrief", phaseIndex: 0
+            ),
+            checklist = ChecklistType.EVENING, module = core,
+            phase = "Flight Deck Debrief", phaseIndex = 0
         )
 
         add(
-            [
+            listOf(
                 "Turn off bright overhead lights; switch to warm lamps / candles",
                 "Set phone to Night Shift / Do Not Disturb (stop scrolling)",
                 "Open bedroom window slightly (target: 18–19 °C)",
-            ],
-            checklist: .evening, module: core,
-            phase: "Dimming the Lights — T minus 60 min", phaseIndex: 1
+            ),
+            checklist = ChecklistType.EVENING, module = core,
+            phase = "Dimming the Lights — T minus 60 min", phaseIndex = 1
         )
 
         add(
-            [
+            listOf(
                 "Take a warm shower or bath (lowers core body temp)",
                 "Floss and brush teeth",
                 "10 minutes: fiction reading, journaling, or breathing exercises",
                 "Verify morning alarm is set accurately",
                 "Put on eye mask / insert earplugs if needed",
                 "Kill all lights → Complete System Shutdown",
-            ],
-            checklist: .evening, module: core,
-            phase: "Engine Shutdown — T minus 30 min", phaseIndex: 2
+            ),
+            checklist = ChecklistType.EVENING, module = core,
+            phase = "Engine Shutdown — T minus 30 min", phaseIndex = 2
         )
 
         // ─────────────────────────────────────────
@@ -328,7 +283,7 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Apparel: Pack 1 training t-shirt and 1 pair of athletic shorts/pants",
                 "Undergarments: Pack 1 pair of clean gym socks and fresh underwear",
                 "Footwear: Pack clean indoor training sneakers (check soles for dirt)",
@@ -336,22 +291,22 @@ enum SeedData {
                 "Electronics: Pack wireless headphones (verify battery is charged) and fitness tracker",
                 "Access: Place Gym Membership Card / Key Fob into the bag's secure pocket",
                 "Nutrition/Hydration: Prep water bottle or shaker with cold water",
-            ],
-            checklist: .evening, module: gym,
-            phase: "Collect & Pack — Evening Before", phaseIndex: 0
+            ),
+            checklist = ChecklistType.EVENING, module = gym,
+            phase = "Collect & Pack — Evening Before", phaseIndex = 0
         )
 
         add(
-            [
+            listOf(
                 "Supplements: Take post-workout recovery supplement (creatine, protein, magnesium)",
                 "Laundry Strip: Extract sweaty t-shirt, shorts, and socks → drop directly into the laundry bin",
                 "Towel Extraction: Remove the used bench towel → place in laundry",
                 "Footwear Airing: Take out training sneakers → place on an open rack to air out",
                 "Shaker Sanitize: Empty and wash the shaker bottle with soap immediately to prevent odors",
                 "Electronics Dock: Connect headphones to the charging cable",
-            ],
-            checklist: .evening, module: gym,
-            phase: "Post-Workout Unload & Reset — Evening Return", phaseIndex: 1
+            ),
+            checklist = ChecklistType.EVENING, module = gym,
+            phase = "Post-Workout Unload & Reset — Evening Return", phaseIndex = 1
         )
 
         // ─────────────────────────────────────────
@@ -359,7 +314,7 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Swimwear: Pack swimming trunks / jammers",
                 "Head/Eye Gear: Pack swim cap and swim goggles (verify anti-fog lenses are clear)",
                 "Deck Footwear: Pack rubber pool slides / flip-flops (for shower and deck hygiene)",
@@ -367,21 +322,21 @@ enum SeedData {
                 "Drying Layer: Pack 1 large, highly absorbent body towel",
                 "Moisture Barrier: Pack 1 heavy-duty waterproof dry-bag (to isolate wet items later)",
                 "Access: Verify Pool Pass / Access Card is inside the bag",
-            ],
-            checklist: .evening, module: swim,
-            phase: "Collect & Pack — Evening Before", phaseIndex: 0
+            ),
+            checklist = ChecklistType.EVENING, module = swim,
+            phase = "Collect & Pack — Evening Before", phaseIndex = 0
         )
 
         add(
-            [
+            listOf(
                 "Wet Extraction: Pull wet swimming trunks out of the dry-bag → rinse with fresh water and hang up to dry immediately",
                 "Towel Drying: Remove the wet body towel → hang on a drying rack or toss into the laundry",
                 "Optics Care: Rinse goggles and swim cap with clean, fresh water (no soap) → lay flat to air dry",
                 "Footwear Sanitize: Take out pool slides → wipe down and leave to dry",
                 "Dry-Bag Airing: Turn the empty waterproof dry-bag inside out or leave it completely open to prevent mold and mildew growth",
-            ],
-            checklist: .evening, module: swim,
-            phase: "Post-Workout Unload & Reset — Evening Return", phaseIndex: 1
+            ),
+            checklist = ChecklistType.EVENING, module = swim,
+            phase = "Post-Workout Unload & Reset — Evening Return", phaseIndex = 1
         )
 
         // ─────────────────────────────────────────
@@ -389,7 +344,7 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Gi: Pack a clean, dry gi — jacket and trousers",
                 "Belt: Pack your belt (rolled, not knotted)",
                 "Off-Mat Footwear: Pack flip-flops / zori for walking off the mat",
@@ -397,21 +352,21 @@ enum SeedData {
                 "Body Care: Pack finger/toe tape and any joint supports (knee, ankle)",
                 "Hydration: Prep water bottle with cold water",
                 "Access: Place club membership / dojo access card into the bag's secure pocket",
-            ],
-            checklist: .evening, module: judo,
-            phase: "Collect & Pack — Evening Before", phaseIndex: 0
+            ),
+            checklist = ChecklistType.EVENING, module = judo,
+            phase = "Collect & Pack — Evening Before", phaseIndex = 0
         )
 
         add(
-            [
+            listOf(
                 "Gi Strip: Remove the sweaty gi → hang to air out or drop into the laundry",
                 "Belt Care: Air out the belt → hang it up (traditionally never washed)",
                 "Footwear Airing: Take out flip-flops → wipe down and leave to dry",
                 "Towel Extraction: Remove the used towel → place in laundry",
                 "Hydration Reset: Empty and rinse the water bottle to prevent odors",
-            ],
-            checklist: .evening, module: judo,
-            phase: "Post-Workout Unload & Reset — Evening Return", phaseIndex: 1
+            ),
+            checklist = ChecklistType.EVENING, module = judo,
+            phase = "Post-Workout Unload & Reset — Evening Return", phaseIndex = 1
         )
 
         // ─────────────────────────────────────────
@@ -419,7 +374,7 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Status Check: Confirm the Cycling 'Velo-Pack' was packed last night",
                 "Safety: Confirm helmet is in or strapped to the bag",
                 "Visibility: Confirm front and rear lights are charged and clipped on",
@@ -428,9 +383,9 @@ enum SeedData {
                 "Fuel: Add an energy gel or bar for rides over 45 min",
                 "Tyres: Quick squeeze-check both tyres for correct pressure",
                 "Grab the Cycling 'Velo-Pack' on your way out the door",
-            ],
-            checklist: .morning, module: cycling,
-            phase: "Final Gear Check — Before Exit", phaseIndex: 0
+            ),
+            checklist = ChecklistType.MORNING, module = cycling,
+            phase = "Final Gear Check — Before Exit", phaseIndex = 0
         )
 
         // ─────────────────────────────────────────
@@ -438,7 +393,7 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Status Check: Confirm the Running 'Stride-Pack' was packed last night",
                 "Footwear: Confirm running shoes are in the bag",
                 "Visibility: Confirm reflective vest or LED clip-on blinker are packed (if low light)",
@@ -446,9 +401,9 @@ enum SeedData {
                 "Hydration: Fill handheld bottle or hydration vest reservoir for runs over 60 min",
                 "Fuel: Add an energy gel for runs over 45 min",
                 "Grab the Running 'Stride-Pack' on your way out the door",
-            ],
-            checklist: .morning, module: running,
-            phase: "Final Gear Check — Before Exit", phaseIndex: 0
+            ),
+            checklist = ChecklistType.MORNING, module = running,
+            phase = "Final Gear Check — Before Exit", phaseIndex = 0
         )
 
         // ─────────────────────────────────────────
@@ -456,7 +411,7 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Apparel: Pack cycling jersey and bib shorts / tights",
                 "Base layer: Pack moisture-wicking base layer if cold weather expected",
                 "Socks: Pack 1 pair of clean cycling socks",
@@ -465,22 +420,22 @@ enum SeedData {
                 "Eye protection: Pack sunglasses or clear lenses for low-light riding",
                 "Electronics: Charge bike computer / GPS, front light, and rear light overnight",
                 "Security: Confirm bike lock and key / combo are in the bag",
-            ],
-            checklist: .evening, module: cycling,
-            phase: "Collect & Pack — Evening Before", phaseIndex: 0
+            ),
+            checklist = ChecklistType.EVENING, module = cycling,
+            phase = "Collect & Pack — Evening Before", phaseIndex = 0
         )
 
         add(
-            [
+            listOf(
                 "Apparel: Remove sweaty jersey, bib shorts, and socks → drop into laundry bin",
                 "Footwear: Wipe down cycling shoes; air out on a rack",
                 "Bike wipe-down: Remove road grime from frame and drivetrain with a damp cloth",
                 "Lights: Detach front and rear lights → connect to chargers",
                 "Water bottles: Empty, rinse, and leave open to dry",
                 "Helmet: Wipe inside padding; place on shelf (never hang by straps)",
-            ],
-            checklist: .evening, module: cycling,
-            phase: "Post-Ride Unload & Reset — Evening Return", phaseIndex: 1
+            ),
+            checklist = ChecklistType.EVENING, module = cycling,
+            phase = "Post-Ride Unload & Reset — Evening Return", phaseIndex = 1
         )
 
         // ─────────────────────────────────────────
@@ -488,7 +443,7 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Apparel: Pack moisture-wicking running top and shorts or tights",
                 "Socks: Pack 1 pair of technical running socks",
                 "Footwear: Pack clean running shoes (check laces and sole wear)",
@@ -496,21 +451,21 @@ enum SeedData {
                 "Visibility: Pack reflective vest or LED clip-on blinker",
                 "Electronics: Charge GPS watch and wireless headphones overnight",
                 "Hydration: Prep handheld bottle or fill hydration vest if a long run is planned",
-            ],
-            checklist: .evening, module: running,
-            phase: "Collect & Pack — Evening Before", phaseIndex: 0
+            ),
+            checklist = ChecklistType.EVENING, module = running,
+            phase = "Collect & Pack — Evening Before", phaseIndex = 0
         )
 
         add(
-            [
+            listOf(
                 "Apparel: Remove sweaty top, shorts, and socks → drop into laundry bin",
                 "Footwear: Pull out insoles; leave shoes and insoles open on a rack to dry",
                 "GPS Watch: Sync the run to your training app → place watch on charger",
                 "Headphones: Connect headphones to charging cable",
                 "Hydration: Empty and rinse water bottle / vest reservoir; leave open to air dry",
-            ],
-            checklist: .evening, module: running,
-            phase: "Post-Run Unload & Reset — Evening Return", phaseIndex: 1
+            ),
+            checklist = ChecklistType.EVENING, module = running,
+            phase = "Post-Run Unload & Reset — Evening Return", phaseIndex = 1
         )
 
         // ─────────────────────────────────────────
@@ -518,16 +473,16 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Status Check: Confirm the Yoga 'Flow-Pack' was packed last night",
                 "Mat: Confirm yoga mat is rolled and in the bag",
                 "Props: Confirm yoga block and strap are packed",
                 "Apparel: Confirm comfortable, breathable clothes are in the bag",
                 "Hydration: Fill water bottle with cool water and stow it",
                 "Grab the Yoga 'Flow-Pack' on your way out the door",
-            ],
-            checklist: .morning, module: yoga,
-            phase: "Final Gear Check — Before Exit", phaseIndex: 0
+            ),
+            checklist = ChecklistType.MORNING, module = yoga,
+            phase = "Final Gear Check — Before Exit", phaseIndex = 0
         )
 
         // ─────────────────────────────────────────
@@ -535,25 +490,25 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Mat: Roll up yoga mat and place in bag",
                 "Props: Pack yoga block and strap",
                 "Apparel: Pack comfortable, moisture-wicking top and leggings / shorts",
                 "Hydration: Prep water bottle with cool water",
-            ],
-            checklist: .evening, module: yoga,
-            phase: "Collect & Pack — Evening Before", phaseIndex: 0
+            ),
+            checklist = ChecklistType.EVENING, module = yoga,
+            phase = "Collect & Pack — Evening Before", phaseIndex = 0
         )
 
         add(
-            [
+            listOf(
                 "Mat: Wipe down yoga mat with a damp cloth; unroll and leave to air dry",
                 "Props: Wipe block and strap; store on shelf",
                 "Apparel: Remove sweaty clothes → drop into laundry bin",
                 "Hydration: Empty and rinse water bottle",
-            ],
-            checklist: .evening, module: yoga,
-            phase: "Post-Session Unload & Reset — Evening Return", phaseIndex: 1
+            ),
+            checklist = ChecklistType.EVENING, module = yoga,
+            phase = "Post-Session Unload & Reset — Evening Return", phaseIndex = 1
         )
 
         // ─────────────────────────────────────────
@@ -561,13 +516,13 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Lace up walking shoes",
                 "Plan your walking route (aim for 30–60 min)",
                 "Grab water bottle",
-            ],
-            checklist: .morning, module: walking,
-            phase: "Active Recovery Check", phaseIndex: 0
+            ),
+            checklist = ChecklistType.MORNING, module = walking,
+            phase = "Active Recovery Check", phaseIndex = 0
         )
 
         // ─────────────────────────────────────────
@@ -575,12 +530,12 @@ enum SeedData {
         // ─────────────────────────────────────────
 
         add(
-            [
+            listOf(
                 "Track distance walked (Health app or watch)",
                 "Stretch calves and hamstrings (5 min)",
-            ],
-            checklist: .evening, module: walking,
-            phase: "Walk Debrief", phaseIndex: 1
+            ),
+            checklist = ChecklistType.EVENING, module = walking,
+            phase = "Walk Debrief", phaseIndex = 1
         )
 
         return items
