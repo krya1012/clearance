@@ -2,15 +2,17 @@
 
 ## Status
 
-**Milestones 1–5 (scaffold + data layer + ViewModel + core UI + schedule/module management UI)
-are done** — see `android/app/src/main/java/com/krya1012/clearance/data/`, `domain/`,
-`vm/ChecklistViewModel.kt`, and `ui/`. `DashboardScreen`, `ActivitySelectorSection`,
-`ChecklistSectionContent`, `ChecklistRow`, `ProgressHeaderView`, `ScheduleEditorSheet`,
-`WeeklyPlanGrid`, `ModuleManagerSheet`, `ModuleEditSheet`, `TemplateLibrarySheet`, and
-`ItemEditorSheet` already exist in code and are the source of truth if this doc and the code
-ever disagree. The top bar's calendar/add buttons, and long-press-to-edit on task rows, are
-wired to real sheets now. Not yet built: milestone 6 polish (haptics, animations beyond what
-already exists, an accessibility pass, adaptive launcher icon, `android/README.md`).
+**All six milestones (scaffold + data layer + ViewModel + core UI + schedule/module management
+UI + polish) are done.** See `android/app/src/main/java/com/krya1012/clearance/data/`,
+`domain/`, `vm/ChecklistViewModel.kt`, `ui/`, and `util/Haptics.kt` — these are the source of
+truth if this doc and the code ever disagree. Polish pass added: `util/Haptics.kt`
+(`View.performHapticFeedback` wrapper) wired into task/module/schedule/reorder interactions;
+`AnimatedVisibility`/`Modifier.animateItem()`/`animateColorAsState` for the empty-state swap,
+task/activity row reflow, and Morning↔Evening theme cross-fade; content descriptions on the
+top-bar icon buttons, activity rows, module-manager toggle/overflow/drag-handle, and phase
+chips; a neon-green checkmark + airplane adaptive launcher icon; and `android/README.md`. Known
+platform-parity gaps (no established Reduce-Motion signal in Compose yet; `AutoReset`'s
+calendar-system limitation) are documented in `android/README.md` rather than worked around.
 
 ## Context
 

@@ -3,10 +3,15 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Paper-airplane silhouette, upper-left of the adaptive-icon safe zone. -->
     <path
-        android:fillColor="#2DD4BF"
-        android:pathData="M34,54 L48,68 L76,38"
-        android:strokeColor="#2DD4BF"
+        android:fillColor="#39FF14"
+        android:pathData="M24,48 L52,26 L40,46 L30,44 Z" />
+    <!-- Checkmark, lower-right of the safe zone. -->
+    <path
+        android:fillColor="#39FF14"
+        android:pathData="M52,66 L60,74 L76,54"
+        android:strokeColor="#39FF14"
         android:strokeWidth="8"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />

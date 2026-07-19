@@ -27,11 +27,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.krya1012.clearance.data.ActivityModule
 import com.krya1012.clearance.data.Weekday
 import com.krya1012.clearance.ui.theme.Layout
+import com.krya1012.clearance.util.Haptics
 
 private fun hourLabel(hour: Int): String = if (hour == 0) "Midnight (12 AM)" else "$hour AM"
 
@@ -52,6 +54,7 @@ fun ScheduleEditorSheet(
     onDismiss: () -> Unit,
 ) {
     var showResetConfirm by remember { mutableStateOf(false) }
+    val view = LocalView.current
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -136,7 +139,10 @@ fun ScheduleEditorSheet(
                     WeeklyPlanGrid(
                         modules = enabledModules,
                         weeklySchedule = weeklySchedule,
-                        onToggle = onToggleSchedule,
+                        onToggle = { module, day ->
+                            Haptics.moduleToggled(view)
+                            onToggleSchedule(module, day)
+                        },
                     )
                 }
                 Text(
@@ -157,6 +163,7 @@ fun ScheduleEditorSheet(
             confirmButton = {
                 TextButton(onClick = {
                     showResetConfirm = false
+                    Haptics.reset(view)
                     onResetNow()
                     onDismiss()
                 }) {

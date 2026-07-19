@@ -7,12 +7,14 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
@@ -27,6 +29,7 @@ import com.krya1012.clearance.ui.ModuleManagerSheet
 import com.krya1012.clearance.ui.ScheduleEditorSheet
 import com.krya1012.clearance.ui.TemplateLibrarySheet
 import com.krya1012.clearance.ui.theme.ClearanceTheme
+import com.krya1012.clearance.util.Haptics
 import com.krya1012.clearance.vm.ChecklistViewModel
 
 class MainActivity : ComponentActivity() {
@@ -59,6 +62,17 @@ class MainActivity : ComponentActivity() {
             }
 
             val enabledModules = allModules.filter { it.isOptional && enabledModuleIDs.contains(it.id) }
+            val view = LocalView.current
+
+            // Fires only on the false->true transition into 100% complete, mirroring iOS's
+            // haptic-on-completion-transition behavior rather than buzzing on every toggle
+            // while already complete (e.g. un-skipping an item that was already checked).
+            val isChecklistComplete = totalActiveCount > 0 && completedCount == totalActiveCount
+            var wasChecklistComplete by remember(selectedChecklist) { mutableStateOf(isChecklistComplete) }
+            LaunchedEffect(selectedChecklist, isChecklistComplete) {
+                if (isChecklistComplete && !wasChecklistComplete) Haptics.checklistCompleted(view)
+                wasChecklistComplete = isChecklistComplete
+            }
 
             // Sheet-visibility state — mirrors iOS DashboardView's showSchedule/editorMode
             // pattern, plus the module-manager screens nested one level deeper (opened from
@@ -82,10 +96,19 @@ class MainActivity : ComponentActivity() {
                         progress = progress,
                         completedCount = completedCount,
                         totalActiveCount = totalActiveCount,
-                        onToggleItem = viewModel::toggle,
+                        onToggleItem = { item ->
+                            Haptics.taskToggled(view)
+                            viewModel.toggle(item)
+                        },
                         onEditItem = { item -> editorMode = EditorMode.Edit(item) },
-                        onToggleTodayActivity = viewModel::toggleTodayActivity,
-                        onToggleTomorrowActivity = viewModel::toggleTomorrowActivity,
+                        onToggleTodayActivity = { module ->
+                            Haptics.moduleToggled(view)
+                            viewModel.toggleTodayActivity(module)
+                        },
+                        onToggleTomorrowActivity = { module ->
+                            Haptics.moduleToggled(view)
+                            viewModel.toggleTomorrowActivity(module)
+                        },
                         onOpenSchedule = { showSchedule = true },
                         onAddTask = { editorMode = EditorMode.Add(selectedChecklist) },
                     )

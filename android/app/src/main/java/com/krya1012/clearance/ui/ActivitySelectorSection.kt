@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.animateItem
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +21,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -70,16 +76,27 @@ private fun LazyListScope.activityRows(
             module = module,
             selected = module.id in selectedIds,
             onClick = { onToggle(module) },
+            modifier = Modifier.animateItem(),
         )
     }
 }
 
 @Composable
-private fun ActivityRow(module: ActivityModule, selected: Boolean, onClick: () -> Unit) {
+private fun ActivityRow(
+    module: ActivityModule,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
+            .semantics {
+                contentDescription = module.name
+                role = Role.Checkbox
+                this.selected = selected
+            }
             .padding(horizontal = Layout.ScreenPadding, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

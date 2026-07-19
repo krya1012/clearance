@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.animateItem
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -46,7 +47,9 @@ fun LazyListScope.checklistSectionContent(
                     item = item,
                     onToggle = { onToggle(item) },
                     onEdit = { onEdit(item) },
-                    modifier = Modifier.padding(horizontal = Layout.ScreenPadding, vertical = 5.dp),
+                    modifier = Modifier
+                        .animateItem()
+                        .padding(horizontal = Layout.ScreenPadding, vertical = 5.dp),
                 )
             }
         }

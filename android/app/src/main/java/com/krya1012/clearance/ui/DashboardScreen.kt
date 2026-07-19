@@ -1,5 +1,8 @@
 package com.krya1012.clearance.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +23,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.krya1012.clearance.data.ActivityModule
@@ -71,21 +76,25 @@ fun DashboardScreen(
                 modifier = Modifier.padding(horizontal = Layout.ScreenPadding),
             )
 
-            if (sections.isEmpty() && enabledModules.isEmpty()) {
-                EmptyState(modifier = Modifier.fillMaxSize())
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    activitySelectorSection(
-                        checklist = selectedChecklist,
-                        enabledModules = enabledModules,
-                        todayActivityIDs = todayActivityIDs,
-                        tomorrowActivityIDs = tomorrowActivityIDs,
-                        onToggleToday = onToggleTodayActivity,
-                        onToggleTomorrow = onToggleTomorrowActivity,
-                    )
-                    checklistSectionContent(sections = sections, onToggle = onToggleItem, onEdit = onEditItem)
-                    item(key = "fab-spacer") {
-                        Box(modifier = Modifier.height(88.dp))
+            val isEmpty = sections.isEmpty() && enabledModules.isEmpty()
+            Box(modifier = Modifier.fillMaxSize()) {
+                AnimatedVisibility(visible = isEmpty, enter = fadeIn(), exit = fadeOut()) {
+                    EmptyState(modifier = Modifier.fillMaxSize())
+                }
+                AnimatedVisibility(visible = !isEmpty, enter = fadeIn(), exit = fadeOut()) {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        activitySelectorSection(
+                            checklist = selectedChecklist,
+                            enabledModules = enabledModules,
+                            todayActivityIDs = todayActivityIDs,
+                            tomorrowActivityIDs = tomorrowActivityIDs,
+                            onToggleToday = onToggleTodayActivity,
+                            onToggleTomorrow = onToggleTomorrowActivity,
+                        )
+                        checklistSectionContent(sections = sections, onToggle = onToggleItem, onEdit = onEditItem)
+                        item(key = "fab-spacer") {
+                            Box(modifier = Modifier.height(88.dp))
+                        }
                     }
                 }
             }
@@ -119,11 +128,17 @@ private fun TopBar(
                 }
             }
         }
-        IconButton(onClick = onOpenSchedule) {
-            Text(text = "📅") // calendar glyph — opens the schedule sheet (Milestone 5)
+        IconButton(
+            onClick = onOpenSchedule,
+            modifier = Modifier.semantics { contentDescription = "Open schedule" },
+        ) {
+            Text(text = "📅") // calendar glyph
         }
-        IconButton(onClick = onAddTask) {
-            Text(text = "+", style = MaterialTheme.typography.headlineSmall) // add-task entry point (Milestone 5)
+        IconButton(
+            onClick = onAddTask,
+            modifier = Modifier.semantics { contentDescription = "Add task" },
+        ) {
+            Text(text = "+", style = MaterialTheme.typography.headlineSmall)
         }
     }
 }
