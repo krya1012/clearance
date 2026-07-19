@@ -2,15 +2,27 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Repository layout
+
+This repo hosts two independent native apps sharing one product spec — **no code is shared
+between them**:
+
+- `ios/` — the original SwiftUI/SwiftData app (see below).
+- `android/` — a native Kotlin/Jetpack Compose port (see `android/ANDROID_PLAN.md` for the
+  port's architecture and milestone plan).
+
+Everything in this file below "Build & run" through "Design constraints" describes the **iOS**
+app specifically.
+
 ## Build & run
 
 This is a pure SwiftUI / SwiftData iOS app with no package dependencies and no external build tools.
 
-- **Open:** `open Clearance.xcodeproj` (requires Xcode 16+)
+- **Open:** `open ios/Clearance.xcodeproj` (requires Xcode 16+)
 - **Build/run:** `⌘R` in Xcode — pick an iOS 17+ simulator or a physical iPhone
 - **Build check (no simulator required):**
   ```
-  xcodebuild -project Clearance.xcodeproj -scheme Clearance -destination 'generic/platform=iOS' build
+  xcodebuild -project ios/Clearance.xcodeproj -scheme Clearance -destination 'generic/platform=iOS' build
   ```
 - **Target Swift version:** Swift 6 strict concurrency (`SWIFT_VERSION = 6.0`). The build must be **zero-warning** under strict mode.
 - No test target exists yet; the README notes the ViewModel logic is side-effect-light and straightforward to cover with XCTest if one is added.
@@ -69,6 +81,6 @@ Single-screen MVVM app. One `@MainActor @Observable` view model owns all state; 
 ## Design constraints
 
 - **Swift 6 strict concurrency:** all UI-facing code is `@MainActor`. `ModelContext` and `HapticsManager` must never cross actor boundaries.
-- **Synchronized file group:** every file dropped into `Clearance/` is auto-included; no manual project.pbxproj edits needed for new source files.
+- **Synchronized file group:** every file dropped into `ios/Clearance/` is auto-included; no manual project.pbxproj edits needed for new source files.
 - **Theming:** `Theme.swift` owns all layout metrics, spring curves, and per-sequence color palettes. Both sequences follow the system's light/dark appearance setting (`@Environment(\.colorScheme)`), same as the rest of iOS — no custom day/night override. Landing keeps a true-black background specifically in Dark Mode.
 - **Accessibility:** VoiceOver labels/values/traits on all interactive elements; Dynamic Type via system text styles; all explicit animations suppressed under Reduce Motion.
