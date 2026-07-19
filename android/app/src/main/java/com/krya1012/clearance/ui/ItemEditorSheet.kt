@@ -30,12 +30,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.krya1012.clearance.data.ActivityModule
 import com.krya1012.clearance.data.ChecklistItem
 import com.krya1012.clearance.data.ChecklistType
 import com.krya1012.clearance.ui.theme.Layout
+import com.krya1012.clearance.util.Haptics
 
 /** Which task the sheet is editing — the Android analog of iOS `ItemEditorView.EditorMode`. */
 sealed class EditorMode {
@@ -83,6 +90,7 @@ fun ItemEditorSheet(
 
     val selectedModule = allModules.firstOrNull { it.id == selectedModuleId }
     val canSave = title.trim().isNotEmpty() && (isEditing || selectedModule != null)
+    val view = LocalView.current
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -180,6 +188,7 @@ fun ItemEditorSheet(
                     enabled = canSave,
                     onClick = {
                         val trimmedTitle = title.trim()
+                        Haptics.taskToggled(view)
                         when (mode) {
                             is EditorMode.Add -> selectedModule?.let {
                                 onAdd(trimmedTitle, phaseName, it, selectedChecklist)
@@ -213,6 +222,11 @@ private fun PhaseChip(name: String, selected: Boolean, onClick: () -> Unit) {
             .border(width = 1.dp, color = tint, shape = RoundedCornerShape(50))
             .clickable(onClick = onClick)
             .background(if (selected) tint.copy(alpha = 0.1f) else Color.Transparent, RoundedCornerShape(50))
+            .semantics {
+                contentDescription = "Phase: $name"
+                role = Role.Button
+                this.selected = selected
+            }
             .padding(horizontal = 12.dp, vertical = 6.dp),
         style = MaterialTheme.typography.labelMedium,
     )

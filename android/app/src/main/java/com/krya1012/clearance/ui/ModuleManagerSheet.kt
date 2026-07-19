@@ -31,10 +31,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.krya1012.clearance.data.ActivityModule
 import com.krya1012.clearance.ui.theme.Layout
+import com.krya1012.clearance.util.Haptics
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -67,6 +74,7 @@ fun ModuleManagerSheet(
     val headerCount = (if (core != null) 1 else 0) + locked.size
 
     var moduleToDelete by remember { mutableStateOf<ActivityModule?>(null) }
+    val view = LocalView.current
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Row(
@@ -81,7 +89,10 @@ fun ModuleManagerSheet(
         val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
             val fromIndex = (from.index - headerCount).coerceIn(0, unlocked.lastIndex.coerceAtLeast(0))
             val toIndex = (to.index - headerCount).coerceIn(0, unlocked.lastIndex.coerceAtLeast(0))
-            if (fromIndex != toIndex) onMoveUnlocked(fromIndex, toIndex)
+            if (fromIndex != toIndex) {
+                Haptics.moduleToggled(view)
+                onMoveUnlocked(fromIndex, toIndex)
+            }
         }
 
         LazyColumn(state = lazyListState) {
@@ -95,9 +106,9 @@ fun ModuleManagerSheet(
                     caption = "Locked",
                     canDelete = false,
                     canRestore = hasDefaultTasks(module),
-                    onToggleEnabled = { onToggleEnabled(module) },
+                    onToggleEnabled = { Haptics.moduleToggled(view); onToggleEnabled(module) },
                     onEdit = null,
-                    onRestoreDefaults = { onRestoreDefaults(module) },
+                    onRestoreDefaults = { Haptics.reset(view); onRestoreDefaults(module) },
                     onDelete = { moduleToDelete = module },
                 )
             }
@@ -109,9 +120,9 @@ fun ModuleManagerSheet(
                         caption = null,
                         canDelete = true,
                         canRestore = hasDefaultTasks(module),
-                        onToggleEnabled = { onToggleEnabled(module) },
+                        onToggleEnabled = { Haptics.moduleToggled(view); onToggleEnabled(module) },
                         onEdit = { onEdit(module) },
-                        onRestoreDefaults = { onRestoreDefaults(module) },
+                        onRestoreDefaults = { Haptics.reset(view); onRestoreDefaults(module) },
                         onDelete = { moduleToDelete = module },
                         dragHandle = {
                             Text(
@@ -119,7 +130,8 @@ fun ModuleManagerSheet(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .padding(start = 8.dp)
-                                    .draggableHandle(),
+                                    .draggableHandle()
+                                    .semantics { contentDescription = "Reorder ${module.name}" },
                             )
                         },
                     )
@@ -152,7 +164,7 @@ fun ModuleManagerSheet(
             title = { Text("Delete ${module.name}?") },
             text = { Text("All tasks for this module will be permanently removed.") },
             confirmButton = {
-                TextButton(onClick = { onDelete(module); moduleToDelete = null }) {
+                TextButton(onClick = { Haptics.reset(view); onDelete(module); moduleToDelete = null }) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
@@ -201,7 +213,12 @@ private fun OptionalModuleRow(
                 .size(20.dp)
                 .clickable(onClick = onToggleEnabled)
                 .background(if (enabled) tint else Color.Transparent, CircleShape)
-                .border(width = 2.dp, color = if (enabled) tint else border, shape = CircleShape),
+                .border(width = 2.dp, color = if (enabled) tint else border, shape = CircleShape)
+                .semantics {
+                    contentDescription = "${module.name}, ${if (enabled) "enabled" else "disabled"}"
+                    role = Role.Checkbox
+                    selected = enabled
+                },
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(
@@ -220,7 +237,11 @@ private fun OptionalModuleRow(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier
                     .padding(horizontal = 8.dp)
-                    .clickable { menuExpanded = true },
+                    .clickable { menuExpanded = true }
+                    .semantics {
+                        contentDescription = "More options for ${module.name}"
+                        role = Role.Button
+                    },
             )
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                 if (canRestore) {

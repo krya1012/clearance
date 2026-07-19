@@ -18,10 +18,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.krya1012.clearance.data.ActivityModule
 import com.krya1012.clearance.ui.theme.Layout
+import com.krya1012.clearance.util.Haptics
 
 private const val DefaultModuleEmoji = "🏃"
 
@@ -39,6 +41,7 @@ fun ModuleEditSheet(
     var emoji by remember { mutableStateOf(module?.emoji ?: DefaultModuleEmoji) }
     var name by remember { mutableStateOf(module?.name ?: "") }
     val canSave = name.trim().isNotEmpty()
+    val view = LocalView.current
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -74,6 +77,7 @@ fun ModuleEditSheet(
                     enabled = canSave,
                     onClick = {
                         val trimmedEmoji = emoji.trim().ifEmpty { DefaultModuleEmoji }
+                        Haptics.moduleToggled(view)
                         onSave(name.trim(), trimmedEmoji)
                         onDismiss()
                     },
