@@ -1,4 +1,8 @@
-# Clearance for Android — updated implementation plan (mirrors iOS v7)
+# Clearance for Android — updated implementation plan (mirrors iOS v12)
+
+## Status
+
+**Milestones 1–2 (scaffold + data layer) are done** — see `android/app/src/main/java/com/krya1012/clearance/data/` and `domain/`. The data model, `SeedData`, `ScheduleStore`, `PeriodicTaskStore`, and `TemplateCatalog` described below already exist in code and are the source of truth if this doc and the code ever disagree. The `ViewModel`/`UI detail` sections below still describe **not-yet-built** work (milestones 3+).
 
 ## Context
 
@@ -9,7 +13,7 @@ match.
 
 **What changed since the old plan:**
 - `ModuleType` enum → dynamic `ActivityModule` (Room `@Entity`); users add/rename/emoji/delete modules
-- 7 default modules: Core, Gym, Swim, Judo, Cycling, Running, Yoga (seed v8)
+- 8 default modules: Core, Gym, Swim, Judo, Cycling, Running, Yoga, Walking (seed v12)
 - Weekly schedule: per-weekday recurring plan (`Map<Int, Set<UUID>>`)
 - Per-day overrides: one-day exceptions for today/tomorrow
 - Activity gating: morning = gear-check for today's activities; evening phase 0 = pack for
@@ -17,7 +21,9 @@ match.
 - "Restore default tasks" per module
 - Activity selector rows scroll inside the main list (not fixed above it)
 - Schedule editor: day × module grid, active-modules list with drag reorder, auto-reset time
-- Seed version: **8**
+- Periodic tasks (weekly/monthly recurring, e.g. Laundry/Shopping/Budget/Post) + a template
+  library for quickly re-adding a deleted sport module
+- Seed version: **12**
 
 ---
 
@@ -64,7 +70,14 @@ android/
          │  ├─ ClearanceDatabase.kt         # @Database(entities=[ActivityModule,ChecklistItem])
          │  ├─ ScheduleStore.kt             # DataStore: weeklySchedule, activityOverrides,
          │  │                               #            enabledModules, resetHour, lastAutoReset
-         │  └─ SeedData.kt                  # v7 seed: 6 modules + full task content
+         │  ├─ PeriodicTask.kt              # weekly/monthly recurring task, Recurrence enum
+         │  ├─ PeriodicTaskStore.kt         # DataStore: periodic tasks JSON + seed version
+         │  ├─ TemplateCatalog.kt           # pre-built module templates (Manage modules → add)
+         │  └─ SeedData.kt                  # v12 seed: 8 modules + full task content
+         │
+         ├─ domain/
+         │  ├─ ActivityGating.kt            # pure gating rules (role-of/isVisible/activitiesFor)
+         │  └─ AutoReset.kt                 # pure reset-threshold computation
          │
          ├─ vm/
          │  └─ ChecklistViewModel.kt        # all reactive state + business logic (see below)
@@ -101,8 +114,11 @@ data class ActivityModule(
     val name: String,
     val emoji: String,
     val sortOrder: Int,
-    val isCore: Boolean = false
+    val isCore: Boolean = false,
+    val isLocked: Boolean = false,
+    val activityTypeRaw: String = ActivityType.SPORT.name,
 )
+val ActivityModule.activityType get() = ActivityType.fromRawValue(activityTypeRaw)
 val ActivityModule.isOptional get() = !isCore
 val ActivityModule.label get() = "$emoji $name"
 ```
@@ -129,7 +145,7 @@ Stores all transient schedule state — the Android analog of iOS `ScheduleStore
 
 | Key | Type | Content |
 |-----|------|---------|
-| `clearance.seedVersion.v1` | `Int` | seed version (current 8, default 0) |
+| `clearance.seedVersion.v1` | `Int` | seed version (current 12, default 0) |
 | `clearance.weeklySchedule.v2` | `String` (JSON) | `Map<Int, List<String>>` weekday → module UUIDs |
 | `clearance.activityOverrides.v2` | `String` (JSON) | `Map<String, List<String>>` dateKey → module UUIDs |
 | `clearance.enabledModules.v2` | `String` (JSON) | `List<String>` of enabled optional module UUIDs |
@@ -138,15 +154,27 @@ Stores all transient schedule state — the Android analog of iOS `ScheduleStore
 
 `dateKey` format: `"yyyy-MM-dd"` in the device's local timezone — matching iOS.
 
-### `SeedData` (v7)
+### `SeedData` (v12)
 
-Same 7 modules and full task content as `Clearance/Models/SeedData.swift`.
-`seedIfNeeded(db, store)` is called from `ClearanceApplication.onCreate` (on a coroutine).
-Migration is **additive** — matches seed modules by name against existing records:
+Same 8 modules and full task content as `ios/Clearance/Models/SeedData.swift`.
+`seedIfNeeded(context, moduleDao, itemDao, scheduleStore)` is called from
+`ClearanceApplication.onCreate` (on a coroutine). Migration is **additive** — matches seed
+modules by name against existing records:
 1. Read `seedVersion` from DataStore
-2. If `< 8`: for each seed module, find existing by name (keep UUID) or insert new; insert
+2. If `< 12`: for each seed module, find existing by name (keep id) or insert new; insert
    seed items only for modules with zero items; add new optional module IDs to
-   `enabledModules` without clearing other schedule prefs; save version 8
+   `enabledModules` without clearing other schedule prefs; save version 12
+3. One-time migrations (deprecated-module cleanup; `Rest`→`Walking` rename) are gated to the
+   specific version each was introduced at (10 and 11), not to the general version check —
+   otherwise they'd re-run on every future bump against a user's own later module reusing one
+   of those names
+
+**Not yet ported from iOS:** `Clearance.swift`'s recovery path — if the store ever ends up
+with zero modules (e.g. after a corrupted/unopenable database), reseed regardless of the
+version key and clear `ScheduleStore`'s module-keyed prefs first. `ClearanceDatabase.kt`
+currently has no corruption-recovery path at all (an unhandled `Room.databaseBuilder(...)`
+failure crashes rather than degrading), so this doesn't yet have anywhere to hook in on
+Android — tracked as a separate gap from the seed-migration logic itself.
 
 ---
 
@@ -260,8 +288,8 @@ Morning uses a warm amber accent (`#F59E0B`/`#FBBF24`); evening uses teal (`#2DD
 | SwiftUI `List` `.onMove` | `ReorderableLazyColumn` (sh.calvin.reorderable) |
 | SwiftUI swipe leading/trailing | Compose `SwipeToDismissBox` for delete; leading swipe for Restore |
 | `HapticsManager` | `View.performHapticFeedback(HapticFeedbackConstants.*)` |
-| `.preferredColorScheme(.dark)` | `darkColorScheme()` passed to `MaterialTheme` |
-| `SeedData.currentVersion = 8` | `SeedData.CURRENT_VERSION = 8` |
+| `@Environment(\.colorScheme)` (both sequences follow system light/dark) | `isSystemInDarkTheme()` (both sequences follow system light/dark) |
+| `SeedData.currentVersion = 12` | `SeedData.CURRENT_VERSION = 12` |
 | `ActivityModule.id.uuidString` | `UUID.randomUUID().toString()` |
 | Weekday rawValue 1(Sun)…7(Sat) | `Calendar.DAY_OF_WEEK` values (identical mapping) |
 
@@ -273,7 +301,8 @@ Morning uses a warm amber accent (`#F59E0B`/`#FBBF24`); evening uses teal (`#2DD
    theme (Color/Type/Theme). Extend `.gitignore` for Android artifacts. Build compiles. Commit.
 
 2. **Data layer** — `ActivityModule`, `ChecklistItem`, DAOs, `ClearanceDatabase`,
-   `ScheduleStore`, `SeedData` (v7 full content). Unit-testable with no UI. Commit.
+   `ScheduleStore`, `PeriodicTaskStore`, `TemplateCatalog`, `SeedData` (v12 full content),
+   `domain/` pure functions + unit tests. Unit-testable with no UI. **Done.**
 
 3. **ViewModel** — all `StateFlow`s, activity gating, CRUD, toggle/skip/reset, module
    management, restore-defaults, auto-reset logic, stale-UUID reconciliation. Commit.
@@ -299,7 +328,7 @@ Push to `main`.
 1. Open `android/` in **Android Studio Hedgehog+**; let Gradle sync.
 2. Run on Pixel emulator API 34 or a physical Android device with USB debugging.
 3. Check parity with iOS:
-   - All 6 seed modules appear; tasks grouped by module → phase
+   - All 8 seed modules appear; tasks grouped by module → phase
    - Takeoff/Landing switch updates list and palette; toggling system Light/Dark Mode updates both sequences' palettes, with Landing true-black only in dark mode
    - Activity selector (TODAY / DONE TODAY / PACKING FOR TOMORROW) scrolls with the list
    - Tapping a module row in the selector toggles it; correct tasks appear / disappear

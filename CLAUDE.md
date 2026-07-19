@@ -51,7 +51,7 @@ Single-screen MVVM app. One `@MainActor @Observable` view model owns all state; 
 - Toggled via `toggleModuleEnabled(_:)` from the "Active modules" section in `ScheduleEditorView`.
 - Reordered via `moveModule(from:to:)` — drag handles are always visible in the "Active modules" section of `ScheduleEditorView` (`.environment(\.editMode, .constant(.active))` scoped to that section).
 - Deleting a module (`deleteModule(_:)`) also deletes all its `ChecklistItem` records.
-- Default seed: Core / Gym / Swim / Judo / Cycling / Running / Yoga (all optional modules enabled on first launch).
+- Default seed: Core / Gym / Swim / Judo / Cycling / Running / Yoga / Walking (all optional modules enabled on first launch).
 
 **Dashboard layout:**
 - `DashboardView` top bar: checklist picker | calendar (schedule sheet) | + (add task). No edit/reorder button.
@@ -67,8 +67,10 @@ Single-screen MVVM app. One `@MainActor @Observable` view model owns all state; 
 
 **Seed data versioning:**
 - `SeedData.currentVersion` (an `Int` in `SeedData.swift`) gates seeding via `UserDefaults`. Bump it whenever canonical checklist content changes.
-- Current version: **8**.
-- Migration is **additive**: modules are matched by name against existing records. If a module with the same name already exists its UUID is kept and only its `sortOrder`/`emoji` are synced. Seed tasks are inserted only for modules that currently have zero items — user-created tasks are never overwritten. Newly inserted optional modules are added to `enabledModules` without touching other schedule prefs. This means a user who manually created a module before it was added to the seed is handled gracefully on the next version bump.
+- Current version: **12**.
+- Migration is **additive**: modules are matched by name against existing records. If a module with the same name already exists its UUID is kept and only its `sortOrder`/`emoji`/`isLocked` are synced. Seed tasks are inserted only for modules that currently have zero items — user-created tasks are never overwritten. Newly inserted optional modules are added to `enabledModules` without touching other schedule prefs. This means a user who manually created a module before it was added to the seed is handled gracefully on the next version bump.
+- One-time migrations (deprecated-module cleanup for `Work`/`Study`/`Cooking`/`Leisure`; the `Rest`→`Walking` rename) are gated to the specific version each was introduced at (`storedVersion < deprecatedModuleCleanupVersion` / `< restToWalkingRenameVersion`, versions 10 and 11), **not** to `storedVersion < currentVersion` generally — otherwise every future bump would re-run them against whatever modules exist then, including a user's own later module that happens to reuse one of those names.
+- If the store ever has zero `ActivityModule`s (e.g. `ClearanceApp`'s in-memory fallback after the persistent store fails to open), seeding runs regardless of the version key. Core is never user-deletable (`deleteModule` guards on `isOptional`), so "zero modules" can only mean a genuinely fresh store — this also clears `ScheduleStore`'s schedule/override/enabled-module keys, since they'd otherwise reference module UUIDs that no longer exist.
 
 **Persistence keys (UserDefaults):**
 - `Clearance.seedVersion.v1` — tracks seed version
