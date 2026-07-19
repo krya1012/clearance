@@ -49,3 +49,11 @@ fastlane/test_output
 
 # Patch artifacts (generated, not source)
 *.patch
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.iml
+.idea/
