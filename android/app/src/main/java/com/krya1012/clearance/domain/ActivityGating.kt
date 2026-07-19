@@ -1,8 +1,22 @@
 package com.krya1012.clearance.domain
 
 import com.krya1012.clearance.data.ActivityModule
+import com.krya1012.clearance.data.ChecklistItem
 import com.krya1012.clearance.data.ChecklistType
 import com.krya1012.clearance.data.Weekday
+
+/** A named sub-group of items within a module section, e.g. "Systems Launch". */
+data class ChecklistPhase(
+    val name: String,
+    val phaseIndex: Int,
+    val items: List<ChecklistItem>,
+)
+
+/** One module's gated, phase-grouped items for the currently selected checklist. */
+data class ChecklistSection(
+    val module: ActivityModule,
+    val phases: List<ChecklistPhase>,
+)
 
 /**
  * Pure gating rules extracted from iOS `ChecklistViewModel`'s `role(of:)` /
@@ -73,4 +87,74 @@ object ActivityGating {
         val raw = overrides[dateKey] ?: weeklySchedule[weekday] ?: emptySet()
         return raw.intersect(enabledModuleIds)
     }
+
+    /**
+     * Reconciles a saved enabled-module-ID set against the modules that
+     * currently exist, ported from iOS `ChecklistViewModel.init`'s stale-UUID
+     * reconciliation: `saved == null` (never written) defaults to all
+     * optional modules enabled; if the saved set no longer intersects any
+     * real optional module (e.g. after all previously-enabled modules were
+     * deleted), that's treated as equivalent to "never configured" and also
+     * defaults to all optional modules; otherwise only the still-valid IDs
+     * are kept.
+     */
+    fun reconcileEnabledModuleIds(saved: Set<String>?, optionalIds: Set<String>): Set<String> {
+        if (saved == null) return optionalIds
+        val valid = saved.intersect(optionalIds)
+        return if (valid.isEmpty() && optionalIds.isNotEmpty()) optionalIds else valid
+    }
+
+    /**
+     * Builds the gated, module→phase-grouped sections for the currently
+     * selected checklist, ported from iOS `ChecklistViewModel.sections`.
+     * Items whose module no longer exists, or whose module is optional and
+     * not currently enabled, are dropped entirely.
+     */
+    fun buildSections(
+        items: List<ChecklistItem>,
+        modules: List<ActivityModule>,
+        selectedChecklist: ChecklistType,
+        enabledModuleIds: Set<String>,
+        todayActivityIds: Set<String>,
+        tomorrowActivityIds: Set<String>,
+    ): List<ChecklistSection> {
+        val modulesById = modules.associateBy { it.id }
+
+        val visible = items.filter { item ->
+            if (item.associatedChecklist != selectedChecklist) return@filter false
+            val module = modulesById[item.associatedModule] ?: return@filter false
+            if (!isModuleVisible(module, enabledModuleIds)) return@filter false
+            val role = roleOf(module, item.associatedChecklist, item.phaseIndex)
+            isVisible(role, module.id, todayActivityIds, tomorrowActivityIds)
+        }
+
+        return visible
+            .groupBy { it.associatedModule }
+            .mapNotNull { (moduleId, moduleItems) ->
+                val module = modulesById[moduleId] ?: return@mapNotNull null
+                val phases = moduleItems
+                    .groupBy { it.phase }
+                    .map { (phaseName, phaseItems) ->
+                        ChecklistPhase(
+                            name = phaseName,
+                            phaseIndex = phaseItems.first().phaseIndex,
+                            items = phaseItems.sortedBy { it.orderIndex },
+                        )
+                    }
+                    .sortedBy { it.phaseIndex }
+                ChecklistSection(module = module, phases = phases)
+            }
+            .sortedBy { it.module.sortOrder }
+    }
+
+    /**
+     * Prunes a per-date overrides map down to a small retained key window
+     * (e.g. yesterday/today/tomorrow), ported from iOS `pruneOverrides()` —
+     * keeps the persisted overrides from growing unbounded at the cost of
+     * losing far-future/past manual overrides.
+     */
+    fun pruneOverrideKeys(
+        overrides: Map<String, Set<String>>,
+        keepKeys: Set<String>,
+    ): Map<String, Set<String>> = overrides.filterKeys { it in keepKeys }
 }

@@ -117,4 +117,52 @@ class ActivityGatingTest {
         assertFalse(ActivityGating.isModuleVisible(gym, emptySet()))
         assertFalse(ActivityGating.isModuleVisible(gym, setOf("swim")))
     }
+
+    @Test
+    fun `reconcile defaults to all optional modules when nothing was ever saved`() {
+        val result = ActivityGating.reconcileEnabledModuleIds(saved = null, optionalIds = setOf("gym", "swim"))
+        assertEquals(setOf("gym", "swim"), result)
+    }
+
+    @Test
+    fun `reconcile keeps only the intersection when the saved set is partially stale`() {
+        val result = ActivityGating.reconcileEnabledModuleIds(
+            saved = setOf("gym", "deleted-module"),
+            optionalIds = setOf("gym", "swim"),
+        )
+        assertEquals(setOf("gym"), result)
+    }
+
+    @Test
+    fun `reconcile falls back to all optional modules when the saved set is entirely stale`() {
+        val result = ActivityGating.reconcileEnabledModuleIds(
+            saved = setOf("deleted-a", "deleted-b"),
+            optionalIds = setOf("gym", "swim"),
+        )
+        assertEquals(setOf("gym", "swim"), result)
+    }
+
+    @Test
+    fun `reconcile of an explicitly empty saved set with no optional modules stays empty`() {
+        val result = ActivityGating.reconcileEnabledModuleIds(saved = emptySet(), optionalIds = emptySet())
+        assertEquals(emptySet<String>(), result)
+    }
+
+    @Test
+    fun `pruneOverrideKeys keeps only entries within the retained key window`() {
+        val overrides = mapOf(
+            "2026-07-18" to setOf("gym"),
+            "2026-07-19" to setOf("swim"),
+            "2026-07-20" to setOf("core"),
+            "2026-01-01" to setOf("stale"),
+        )
+        val result = ActivityGating.pruneOverrideKeys(
+            overrides,
+            keepKeys = setOf("2026-07-18", "2026-07-19", "2026-07-20"),
+        )
+        assertEquals(
+            mapOf("2026-07-18" to setOf("gym"), "2026-07-19" to setOf("swim"), "2026-07-20" to setOf("core")),
+            result,
+        )
+    }
 }
