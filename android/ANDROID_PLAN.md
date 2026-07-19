@@ -2,7 +2,7 @@
 
 ## Status
 
-**Milestones 1–2 (scaffold + data layer) are done** — see `android/app/src/main/java/com/krya1012/clearance/data/` and `domain/`. The data model, `SeedData`, `ScheduleStore`, `PeriodicTaskStore`, and `TemplateCatalog` described below already exist in code and are the source of truth if this doc and the code ever disagree. The `ViewModel`/`UI detail` sections below still describe **not-yet-built** work (milestones 3+).
+**Milestones 1–3 (scaffold + data layer + ViewModel) are done** — see `android/app/src/main/java/com/krya1012/clearance/data/`, `domain/`, and `vm/ChecklistViewModel.kt`. The data model, `SeedData`, `ScheduleStore`, `PeriodicTaskStore`, `TemplateCatalog`, and `ChecklistViewModel` described below already exist in code and are the source of truth if this doc and the code ever disagree. The `UI detail` section below still describes **not-yet-built** work (milestone 4+).
 
 ## Context
 
