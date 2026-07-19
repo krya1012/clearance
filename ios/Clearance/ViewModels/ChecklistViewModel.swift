@@ -325,7 +325,12 @@ final class ChecklistViewModel {
         let descriptor = FetchDescriptor<ActivityModule>(
             sortBy: [SortDescriptor(\.sortOrder, order: .forward)]
         )
-        allModules = (try? modelContext.fetch(descriptor)) ?? []
+        do {
+            allModules = try modelContext.fetch(descriptor)
+        } catch {
+            persistenceLogger.error("reloadModules: fetch failed — \(error)")
+            allModules = []
+        }
     }
 
     func addModule(name: String, emoji: String, activityType: ActivityType = .sport) {
@@ -382,12 +387,24 @@ final class ChecklistViewModel {
         enabledModuleIDs.remove(module.id)
         for key in weeklySchedule.keys { weeklySchedule[key]?.remove(module.id) }
         for key in overrides.keys { overrides[key]?.remove(module.id) }
+        pruneOverrides()
         scheduleStore.saveEnabledModuleIDs(enabledModuleIDs)
         scheduleStore.saveSchedule(weeklySchedule)
         scheduleStore.saveOverrides(overrides)
-        allItems
-            .filter { $0.associatedModule == module.id.uuidString }
-            .forEach { modelContext.delete($0) }
+        // Fetch this module's items directly rather than filtering the
+        // cached `allItems` — if a prior reload silently failed and left
+        // that cache stale/incomplete, deleting from it here would orphan
+        // this module's items (deleted module, undeleted items) instead of
+        // removing them.
+        let moduleIDString = module.id.uuidString
+        let itemsDescriptor = FetchDescriptor<ChecklistItem>(
+            predicate: #Predicate { $0.associatedModule == moduleIDString }
+        )
+        do {
+            try modelContext.fetch(itemsDescriptor).forEach { modelContext.delete($0) }
+        } catch {
+            persistenceLogger.error("deleteModule: fetch for module's items failed — \(error); its items were not deleted")
+        }
         modelContext.delete(module)
         save()
         reloadModules()
@@ -536,14 +553,22 @@ final class ChecklistViewModel {
         let descriptor = FetchDescriptor<ChecklistItem>(
             sortBy: [SortDescriptor(\.orderIndex, order: .forward)]
         )
-        allItems = (try? modelContext.fetch(descriptor)) ?? []
+        do {
+            allItems = try modelContext.fetch(descriptor)
+        } catch {
+            persistenceLogger.error("reloadItems: fetch failed — \(error)")
+            allItems = []
+        }
     }
 
     private func save() {
         do {
             try modelContext.save()
         } catch {
-            assertionFailure("Clearance: failed to save model context — \(error)")
+            // assertionFailure is a no-op in Release builds — a failed save
+            // (e.g. disk full) would otherwise vanish silently while the UI
+            // still shows the optimistic in-memory mutation as if it landed.
+            persistenceLogger.error("failed to save model context — \(error)")
         }
     }
 }
