@@ -1,8 +1,9 @@
 package com.krya1012.clearance.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,12 +32,17 @@ import androidx.compose.ui.unit.sp
 import com.krya1012.clearance.data.ChecklistItem
 import com.krya1012.clearance.ui.theme.Layout
 
-/** One task row: checkbox, title (dimmed/struck-through when done), SKIPPED TODAY badge. */
+/**
+ * One task row: checkbox, title (dimmed/struck-through when done), SKIPPED TODAY badge.
+ * Tap toggles completion; long-press opens the edit sheet ([onEdit]).
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChecklistRow(
     item: ChecklistItem,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
+    onEdit: (() -> Unit)? = null,
 ) {
     val rowOpacity = when {
         item.isSkipped -> 0.55f
@@ -60,7 +66,11 @@ fun ChecklistRow(
             .clip(RoundedCornerShape(Layout.RowCornerRadius))
             .background(MaterialTheme.colorScheme.surface)
             .alpha(rowOpacity)
-            .clickable(enabled = !item.isSkipped, onClick = onToggle)
+            .combinedClickable(
+                enabled = !item.isSkipped,
+                onClick = onToggle,
+                onLongClick = onEdit,
+            )
             .semantics {
                 contentDescription = "${item.title}, $accessibilityValue"
                 role = Role.Checkbox
