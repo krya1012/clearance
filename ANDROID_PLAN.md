@@ -82,7 +82,7 @@ android/
          │  ├─ ItemEditorSheet.kt           # add / edit task (title, checklist, module, phase)
          │  └─ theme/
          │     ├─ Color.kt
-         │     ├─ Theme.kt                  # ClearanceTheme; evening forces true-black dark scheme
+         │     ├─ Theme.kt                  # ClearanceTheme; follows system light/dark (evening true-black in dark mode)
          │     └─ Type.kt
          │
          └─ util/
@@ -246,8 +246,8 @@ Core module shown in a separate non-editable row at the top; swipe left on it sh
 
 ### Theming
 
-Evening (`ChecklistType.EVENING`) forces `darkColorScheme(background = Color(0xFF000000), surface = Color(0xFF000000), ...)` regardless of system setting — matching iOS true-black.
-Morning uses a warm amber accent (`#F59E0B`/`#FBBF24`); evening uses teal (`#2DD4BF`).
+Both sequences follow the system's light/dark appearance setting (`isSystemInDarkTheme()`), same as iOS's `@Environment(\.colorScheme)` — no custom day/night logic. Evening (`ChecklistType.EVENING`) uses true-black (`Color(0xFF000000)`) specifically in dark mode, not regardless of system setting.
+Morning uses a warm amber accent (`#F59E0B`/`#FBBF24`); evening uses teal (`#2DD4BF`/`#0D9488`).
 
 ---
 
@@ -286,7 +286,7 @@ Morning uses a warm amber accent (`#F59E0B`/`#FBBF24`); evening uses teal (`#2DD
    `ModuleManagerSheet`, `ItemEditorSheet`. Full CRUD on modules and tasks. Drag reorder.
    Swipe Restore + Delete. Confirm dialogs. Commit.
 
-6. **Polish** — true-black evening enforcement, haptics, Compose animations
+6. **Polish** — dark-mode true-black evening polish, haptics, Compose animations
    (`AnimatedVisibility`, `animateItemPlacement`), content descriptions (accessibility),
    adaptive launcher icon (neon-green checkmark + airplane), `android/README.md`. Commit.
 
@@ -300,7 +300,7 @@ Push to `main`.
 2. Run on Pixel emulator API 34 or a physical Android device with USB debugging.
 3. Check parity with iOS:
    - All 6 seed modules appear; tasks grouped by module → phase
-   - Takeoff/Landing switch updates list and palette (Landing = true-black)
+   - Takeoff/Landing switch updates list and palette; toggling system Light/Dark Mode updates both sequences' palettes, with Landing true-black only in dark mode
    - Activity selector (TODAY / DONE TODAY / PACKING FOR TOMORROW) scrolls with the list
    - Tapping a module row in the selector toggles it; correct tasks appear / disappear
    - Weekly plan grid in Schedule toggles per-weekday; next-day open reflects it

@@ -70,5 +70,5 @@ Single-screen MVVM app. One `@MainActor @Observable` view model owns all state; 
 
 - **Swift 6 strict concurrency:** all UI-facing code is `@MainActor`. `ModelContext` and `HapticsManager` must never cross actor boundaries.
 - **Synchronized file group:** every file dropped into `Clearance/` is auto-included; no manual project.pbxproj edits needed for new source files.
-- **Theming:** `Theme.swift` owns all layout metrics, spring curves, and per-sequence color palettes. Landing (evening) is intentionally true-black regardless of system appearance (`.preferredColorScheme(.dark)` applied at the dashboard level).
+- **Theming:** `Theme.swift` owns all layout metrics, spring curves, and per-sequence color palettes. Both sequences follow the system's light/dark appearance setting (`@Environment(\.colorScheme)`), same as the rest of iOS — no custom day/night override. Landing keeps a true-black background specifically in Dark Mode.
 - **Accessibility:** VoiceOver labels/values/traits on all interactive elements; Dynamic Type via system text styles; all explicit animations suppressed under Reduce Motion.
