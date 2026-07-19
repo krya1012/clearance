@@ -5,9 +5,10 @@
 //  Centralised design tokens: layout metrics, motion curves, and a per-sequence
 //  color palette.
 //
-//  Appearance strategy: the **Takeoff** (morning) sequence follows the system
-//  appearance, while the **Landing** (evening) sequence is intentionally always
-//  dark with a *true-black* background for comfortable low-light, nighttime use.
+//  Appearance strategy: both sequences follow the system's light/dark
+//  appearance setting, same as the rest of iOS — no custom day/night logic.
+//  Landing keeps its dark palette *true-black* for comfortable nighttime use
+//  when the system is in Dark Mode, but no longer forces dark during the day.
 //
 
 import SwiftUI
@@ -61,14 +62,24 @@ enum Theme {
                 )
             }
         case .evening:
-            // Always dark / true black, regardless of system appearance.
-            ChecklistPalette(
-                background: .black,
-                surface: Color(hex: 0x101014),
-                primaryText: Color(hex: 0xF5F5F7),
-                secondaryText: Color(hex: 0x8E8E93),
-                tint: Color(hex: 0x2DD4BF)
-            )
+            switch scheme {
+            case .dark:
+                ChecklistPalette(
+                    background: .black,
+                    surface: Color(hex: 0x101014),
+                    primaryText: Color(hex: 0xF5F5F7),
+                    secondaryText: Color(hex: 0x8E8E93),
+                    tint: Color(hex: 0x2DD4BF)
+                )
+            default:
+                ChecklistPalette(
+                    background: Color(hex: 0xF4F6F8),
+                    surface: .white,
+                    primaryText: Color(hex: 0x11181C),
+                    secondaryText: Color(hex: 0x5B6770),
+                    tint: Color(hex: 0x0D9488)
+                )
+            }
         }
     }
 }

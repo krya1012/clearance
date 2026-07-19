@@ -29,8 +29,9 @@ Built to be glanceable, high-contrast, and fast.
 - **Swipe to skip** — swipe a row left to skip it for the day (swipe again to restore).
 - **Auto-reset** — tasks are silently cleared at a configurable hour (default 3 AM) on first
   open after that time. A manual "Reset now" button is in the schedule editor.
-- **Built for night** — the *Landing* sequence uses a **true-black**, high-contrast palette
-  regardless of system appearance.
+- **Follows your phone's appearance** — both sequences switch between light and dark palettes
+  along with the system's Light/Dark Mode setting, exactly like the rest of iOS. *Landing* uses a
+  **true-black**, high-contrast palette specifically when the system is in Dark Mode.
 - **Accessible** — VoiceOver labels/values/traits throughout, Dynamic Type via system text
   styles, and full **Reduce Motion** support.
 
@@ -164,7 +165,7 @@ Clearance/
 │  └─ ItemEditorView.swift       add / edit task sheet
 ├─ Helpers/
 │  ├─ Haptics.swift          @MainActor wrapper over UIKit feedback generators
-│  ├─ Theme.swift            color palettes (true-black evening) + layout/motion tokens
+│  ├─ Theme.swift            color palettes (per-sequence, follows system light/dark) + layout/motion tokens
 │  ├─ ScheduleStore.swift    UserDefaults-backed weekly schedule, per-day overrides, enabled IDs
 │  └─ Extensions.swift       Color(hex:)
 └─ Assets.xcassets/          AccentColor (teal), AppIcon
@@ -230,8 +231,9 @@ non-`Sendable` `ModelContext` / `HapticsManager` never cross actor boundaries.
 ### Design system
 
 `Theme` centralizes layout metrics, spring/motion curves, and a per-sequence `ChecklistPalette`.
-*Takeoff* follows the system appearance; *Landing* is intentionally **true black** for nighttime
-use, and the dashboard applies `.preferredColorScheme(.dark)` while it's active.
+Both *Takeoff* and *Landing* follow the system's light/dark appearance setting
+(`@Environment(\.colorScheme)`) — no custom day/night logic. *Landing* keeps a **true-black**
+background specifically in Dark Mode, for comfortable nighttime use.
 
 ### Accessibility
 
@@ -246,7 +248,7 @@ use, and the dashboard applies `.preferredColorScheme(.dark)` while it's active.
 Open in Xcode 16+, run on an iOS 17+ simulator or your iPhone, and confirm:
 
 - [ ] Seed data appears on first launch (Morning/Evening Core + 5 sport modules).
-- [ ] Takeoff ↔ Landing switch updates the list, header, and palette (true-black evening).
+- [ ] Takeoff ↔ Landing switch updates the list, header, and palette; toggling the device's Light/Dark Mode (in daytime) updates both sequences' palettes accordingly, with Landing true-black only in Dark Mode.
 - [ ] Tapping activity chips injects/removes sport sections with a spring animation.
 - [ ] Weekly schedule (calendar icon) correctly gates activities by day.
 - [ ] Morning shows the gear-check for today's activities; evening shows unload (today) and pack (tomorrow).
