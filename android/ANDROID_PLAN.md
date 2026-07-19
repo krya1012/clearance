@@ -2,7 +2,7 @@
 
 ## Status
 
-**Milestones 1–3 (scaffold + data layer + ViewModel) are done** — see `android/app/src/main/java/com/krya1012/clearance/data/`, `domain/`, and `vm/ChecklistViewModel.kt`. The data model, `SeedData`, `ScheduleStore`, `PeriodicTaskStore`, `TemplateCatalog`, and `ChecklistViewModel` described below already exist in code and are the source of truth if this doc and the code ever disagree. The `UI detail` section below still describes **not-yet-built** work (milestone 4+).
+**Milestones 1–4 (scaffold + data layer + ViewModel + core UI) are done** — see `android/app/src/main/java/com/krya1012/clearance/data/`, `domain/`, `vm/ChecklistViewModel.kt`, and `ui/`. `DashboardScreen`, `ActivitySelectorSection`, `ChecklistSectionContent`, `ChecklistRow`, and `ProgressHeaderView` already exist in code and are the source of truth if this doc and the code ever disagree. Not yet built: `ScheduleEditorSheet`, `WeeklyPlanGrid`, `ModuleManagerSheet`, `ItemEditorSheet` (milestone 5+) — the top bar's calendar/add buttons are wired to no-op stubs until then.
 
 ## Context
 
