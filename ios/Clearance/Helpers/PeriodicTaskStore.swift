@@ -22,7 +22,11 @@ final class PeriodicTaskStore {
 
     func seedDefaultsIfNeeded() {
         let stored = defaults.integer(forKey: Self.seedVersionKey)
-        guard stored < Self.currentSeedVersion else { return }
+        // Also reseed if the stored blob is corrupted (present but undecodable) —
+        // otherwise a decode failure would silently look like "already seeded"
+        // forever and the next save() would permanently overwrite it with
+        // whatever the corrupted read decoded to (nothing).
+        guard stored < Self.currentSeedVersion || isStoredDataCorrupted() else { return }
         let existing = load()
         let existingTitles = Set(existing.map(\.title))
         let seeds: [PeriodicTask] = [
@@ -76,5 +80,13 @@ final class PeriodicTaskStore {
     func save(_ tasks: [PeriodicTask]) {
         guard let data = try? JSONEncoder().encode(tasks) else { return }
         defaults.set(data, forKey: Self.key)
+    }
+
+    /// True when a periodic-tasks blob exists but fails to decode — distinct
+    /// from "no data yet" (key absent) or "user cleared everything" (decodes
+    /// fine to an empty array), neither of which should trigger a reseed.
+    private func isStoredDataCorrupted() -> Bool {
+        guard let data = defaults.data(forKey: Self.key) else { return false }
+        return (try? JSONDecoder().decode([PeriodicTask].self, from: data)) == nil
     }
 }

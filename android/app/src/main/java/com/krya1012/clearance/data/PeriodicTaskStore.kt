@@ -26,7 +26,11 @@ class PeriodicTaskStore(private val context: Context) {
 
     suspend fun seedDefaultsIfNeeded() {
         val stored = context.clearanceDataStore.data.first()[Keys.SEED_VERSION] ?: 0
-        if (stored >= CURRENT_SEED_VERSION) return
+        // Also reseed if the stored blob is corrupted (present but undecodable) —
+        // otherwise a decode failure would silently look like "already seeded"
+        // forever and the next save() would permanently overwrite it with
+        // whatever the corrupted read decoded to (nothing).
+        if (stored >= CURRENT_SEED_VERSION && !isStoredDataCorrupted()) return
 
         val existing = load()
         val existingTitles = existing.map { it.title }.toSet()
@@ -68,5 +72,15 @@ class PeriodicTaskStore(private val context: Context) {
     suspend fun save(tasks: List<PeriodicTask>) {
         val encoded = Json.encodeToString(tasks)
         context.clearanceDataStore.edit { it[Keys.TASKS] = encoded }
+    }
+
+    /**
+     * True when a periodic-tasks blob exists but fails to decode — distinct
+     * from "no data yet" (key absent) or "user cleared everything" (decodes
+     * fine to an empty list), neither of which should trigger a reseed.
+     */
+    private suspend fun isStoredDataCorrupted(): Boolean {
+        val raw = context.clearanceDataStore.data.first()[Keys.TASKS] ?: return false
+        return runCatching { Json.decodeFromString<List<PeriodicTask>>(raw) }.getOrNull() == null
     }
 }
