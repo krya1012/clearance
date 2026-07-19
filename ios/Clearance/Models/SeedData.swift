@@ -29,7 +29,26 @@ enum SeedData {
     @MainActor
     static func seedIfNeeded(in context: ModelContext, scheduleStore: ScheduleStore) {
         let storedVersion = UserDefaults.standard.integer(forKey: versionKey)
-        guard storedVersion < currentVersion else { return }
+        // The version key lives in UserDefaults, entirely independent of which
+        // store is actually active. If the persistent store ever fails to open
+        // (see ClearanceApp.init's in-memory fallback) *after* seedVersion was
+        // already written from an earlier successful run, storedVersion looks
+        // "already migrated" even though the fresh in-memory store has zero
+        // modules — so also reseed whenever there are no modules at all. Core
+        // is never deletable by the user (`deleteModule` guards on
+        // `isOptional`), so "zero modules" can only mean a genuinely fresh
+        // store, never an intentional user state.
+        let hasNoModules = ((try? context.fetch(FetchDescriptor<ActivityModule>())) ?? []).isEmpty
+        guard storedVersion < currentVersion || hasNoModules else { return }
+
+        if hasNoModules {
+            // Any saved schedule/override/enabled-module UUIDs necessarily
+            // reference modules that no longer exist in this fresh store —
+            // clear them rather than leaving them to silently resolve to
+            // nothing (a no-op on a genuinely first-ever launch, since
+            // there's nothing stored yet either).
+            scheduleStore.clearModuleKeys()
+        }
 
         // Remove deprecated module types that are no longer part of the app.
         // Only for installs migrating across the version that introduced this
