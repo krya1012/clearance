@@ -52,9 +52,13 @@ Built to be glanceable, high-contrast, and fast.
 
 ```bash
 git clone https://github.com/krya1012/clearance.git ~/Clearance
-cd ~/Clearance
+cd ~/Clearance/ios
 open Clearance.xcodeproj      # Xcode 16+
 ```
+
+> This repo also hosts a native Android port under [`android/`](android/) — see
+> [`android/ANDROID_PLAN.md`](android/ANDROID_PLAN.md) for that build. The rest of this README
+> covers the iOS app in `ios/`.
 
 Because the target uses a synchronized file group, **every file under `Clearance/` is included
 automatically** — just drop new files into the folder and Xcode picks them up.
@@ -67,6 +71,8 @@ automatically** — just drop new files into the folder and Xcode picks them up.
 If no simulator runtime is listed, add one in **Xcode ▸ Settings ▸ Platforms**.
 
 ### Build & run from the terminal
+
+> Commands below assume your shell is inside `ios/` (as it is after the Quick start `cd` above).
 
 **Build only** (verify zero warnings under Swift 6):
 ```bash
