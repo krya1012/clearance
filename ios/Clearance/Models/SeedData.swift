@@ -15,6 +15,15 @@ enum SeedData {
     private static let currentVersion = 12
     private static let versionKey = "Clearance.seedVersion.v1"
 
+    /// One-time migrations below are gated to the specific version they were
+    /// introduced at, not to `storedVersion < currentVersion` generally —
+    /// otherwise every future version bump would re-run them against
+    /// whatever modules exist *then*, including ones a user created after
+    /// the migration already ran once (e.g. deleting a user's own module
+    /// named "Study" on a later, unrelated bump).
+    private static let deprecatedModuleCleanupVersion = 10
+    private static let restToWalkingRenameVersion = 11
+
     // MARK: - Entry point
 
     @MainActor
@@ -23,22 +32,30 @@ enum SeedData {
         guard storedVersion < currentVersion else { return }
 
         // Remove deprecated module types that are no longer part of the app.
-        let deprecatedNames: Set<String> = ["Work", "Study", "Cooking", "Leisure"]
-        let allExisting = (try? context.fetch(FetchDescriptor<ActivityModule>())) ?? []
-        for module in allExisting where deprecatedNames.contains(module.name) {
-            let items = (try? context.fetch(FetchDescriptor<ChecklistItem>())) ?? []
-            items.filter { $0.associatedModule == module.id.uuidString }.forEach { context.delete($0) }
-            context.delete(module)
+        // Only for installs migrating across the version that introduced this
+        // cleanup — never again afterward, so a user's own later module
+        // reusing one of these names is never touched.
+        if storedVersion < deprecatedModuleCleanupVersion {
+            let deprecatedNames: Set<String> = ["Work", "Study", "Cooking", "Leisure"]
+            let allExisting = (try? context.fetch(FetchDescriptor<ActivityModule>())) ?? []
+            for module in allExisting where deprecatedNames.contains(module.name) {
+                let items = (try? context.fetch(FetchDescriptor<ChecklistItem>())) ?? []
+                items.filter { $0.associatedModule == module.id.uuidString }.forEach { context.delete($0) }
+                context.delete(module)
+            }
+            try? context.save()
         }
-        try? context.save()
 
-        // Rename "Rest" → "Walking" and remove locked status.
-        let allAfterCleanup = (try? context.fetch(FetchDescriptor<ActivityModule>())) ?? []
-        if let rest = allAfterCleanup.first(where: { $0.name == "Rest" }) {
-            rest.name = "Walking"
-            rest.isLocked = false
+        // Rename "Rest" → "Walking" and remove locked status. Only for
+        // installs migrating across the version that introduced this rename.
+        if storedVersion < restToWalkingRenameVersion {
+            let allAfterCleanup = (try? context.fetch(FetchDescriptor<ActivityModule>())) ?? []
+            if let rest = allAfterCleanup.first(where: { $0.name == "Rest" }) {
+                rest.name = "Walking"
+                rest.isLocked = false
+            }
+            try? context.save()
         }
-        try? context.save()
 
         // Index existing modules by name so user-created modules survive.
         let existingModules = (try? context.fetch(FetchDescriptor<ActivityModule>())) ?? []

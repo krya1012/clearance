@@ -15,6 +15,15 @@ object SeedData {
     private const val CURRENT_VERSION = 12
     private val VERSION_KEY = intPreferencesKey("Clearance.seedVersion.v1")
 
+    // One-time migrations below are gated to the specific version they were
+    // introduced at, not to `storedVersion < CURRENT_VERSION` generally —
+    // otherwise every future version bump would re-run them against whatever
+    // modules exist *then*, including ones a user created after the
+    // migration already ran once (e.g. deleting a user's own module named
+    // "Study" on a later, unrelated bump).
+    private const val DEPRECATED_MODULE_CLEANUP_VERSION = 10
+    private const val REST_TO_WALKING_RENAME_VERSION = 11
+
     // MARK: - Entry point
 
     suspend fun seedIfNeeded(
@@ -27,15 +36,23 @@ object SeedData {
         if (storedVersion >= CURRENT_VERSION) return
 
         // Remove deprecated module types that are no longer part of the app.
-        val deprecatedNames = setOf("Work", "Study", "Cooking", "Leisure")
-        for (module in moduleDao.getAll().filter { it.name in deprecatedNames }) {
-            itemDao.deleteByModule(module.id)
-            moduleDao.delete(module)
+        // Only for installs migrating across the version that introduced this
+        // cleanup — never again afterward, so a user's own later module
+        // reusing one of these names is never touched.
+        if (storedVersion < DEPRECATED_MODULE_CLEANUP_VERSION) {
+            val deprecatedNames = setOf("Work", "Study", "Cooking", "Leisure")
+            for (module in moduleDao.getAll().filter { it.name in deprecatedNames }) {
+                itemDao.deleteByModule(module.id)
+                moduleDao.delete(module)
+            }
         }
 
-        // Rename "Rest" → "Walking" and remove locked status.
-        moduleDao.getAll().firstOrNull { it.name == "Rest" }?.let { rest ->
-            moduleDao.update(rest.copy(name = "Walking", isLocked = false))
+        // Rename "Rest" → "Walking" and remove locked status. Only for
+        // installs migrating across the version that introduced this rename.
+        if (storedVersion < REST_TO_WALKING_RENAME_VERSION) {
+            moduleDao.getAll().firstOrNull { it.name == "Rest" }?.let { rest ->
+                moduleDao.update(rest.copy(name = "Walking", isLocked = false))
+            }
         }
 
         // Index existing modules by name so user-created modules survive.
