@@ -104,4 +104,17 @@ class ActivityGatingTest {
         )
         assertEquals(setOf("gym"), result)
     }
+
+    @Test
+    fun `core module is always module-visible regardless of enabled set`() {
+        assertTrue(ActivityGating.isModuleVisible(core, emptySet()))
+        assertTrue(ActivityGating.isModuleVisible(core, setOf("gym")))
+    }
+
+    @Test
+    fun `optional module is module-visible only when enabled`() {
+        assertTrue(ActivityGating.isModuleVisible(gym, setOf("gym")))
+        assertFalse(ActivityGating.isModuleVisible(gym, emptySet()))
+        assertFalse(ActivityGating.isModuleVisible(gym, setOf("swim")))
+    }
 }

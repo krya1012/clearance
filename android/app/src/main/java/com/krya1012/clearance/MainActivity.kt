@@ -23,7 +23,8 @@ class MainActivity : ComponentActivity() {
         val app = application as ClearanceApplication
         setContent {
             var selectedChecklist by remember { mutableStateOf(ChecklistType.MORNING) }
-            val items by app.database.itemDao().observeAll().collectAsState(initial = emptyList())
+            val itemsFlow = remember { app.database.itemDao().observeAll() }
+            val items by itemsFlow.collectAsState(initial = emptyList())
             ClearanceTheme(checklistType = selectedChecklist) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     DashboardScreen(
