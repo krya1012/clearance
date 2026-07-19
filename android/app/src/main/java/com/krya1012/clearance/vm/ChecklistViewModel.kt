@@ -13,6 +13,7 @@ import com.krya1012.clearance.data.ChecklistItemDao
 import com.krya1012.clearance.data.ChecklistType
 import com.krya1012.clearance.data.ScheduleStore
 import com.krya1012.clearance.data.SeedData
+import com.krya1012.clearance.data.TemplateEntry
 import com.krya1012.clearance.data.Weekday
 import com.krya1012.clearance.domain.ActivityGating
 import com.krya1012.clearance.domain.AutoReset
@@ -128,6 +129,25 @@ internal fun computeGated(
 
     return Gated(today, tomorrow, sections, completedCount, totalActiveCount, progress)
 }
+
+/** True if a module with this template's name already exists (matched by name, like iOS). */
+internal fun computeTemplateInstalled(entry: TemplateEntry, modules: List<ActivityModule>): Boolean =
+    modules.any { it.name == entry.name }
+
+/**
+ * Existing distinct phase names (with their phaseIndex) for a module/checklist pair, ordered
+ * by phaseIndex — feeds the item editor's "reuse an existing phase" chip picker.
+ */
+internal fun computeAvailablePhases(
+    items: List<ChecklistItem>,
+    moduleId: String,
+    checklist: ChecklistType,
+): List<Pair<String, Int>> =
+    items
+        .filter { it.associatedModule == moduleId && it.associatedChecklist == checklist }
+        .sortedBy { it.phaseIndex }
+        .distinctBy { it.phase }
+        .map { it.phase to it.phaseIndex }
 
 /**
  * Reconciles a saved `enabledModuleIDs` set against the modules that actually exist:
@@ -399,6 +419,36 @@ class ChecklistViewModel(
             mutable.forEachIndexed { index, module -> moduleDao.update(module.copy(sortOrder = index + 1)) }
         }
     }
+
+    fun isTemplateInstalled(entry: TemplateEntry): Boolean =
+        computeTemplateInstalled(entry, allModules.value)
+
+    /**
+     * Adds a module from the template catalog and seeds its canonical default tasks —
+     * unlike a plain [addModule], which creates an empty module with no tasks. No-ops if a
+     * module with this name already exists.
+     */
+    fun installTemplate(entry: TemplateEntry) {
+        if (isTemplateInstalled(entry)) return
+        viewModelScope.launch {
+            val sortOrder = (allModules.value.maxOfOrNull { it.sortOrder } ?: 0) + 1
+            val module = ActivityModule(
+                name = entry.name,
+                emoji = entry.emoji,
+                sortOrder = sortOrder,
+                activityTypeRaw = entry.activityType.name,
+            )
+            moduleDao.insert(module)
+            _enabledModuleIDs.update { it + module.id }
+            scheduleStore.saveEnabledModuleIDs(enabledModuleIDs.value)
+
+            val resolvedModules = moduleDao.getAll()
+            SeedData.defaultItems(module, resolvedModules).forEach { itemDao.insert(it) }
+        }
+    }
+
+    fun availablePhases(module: ActivityModule, checklist: ChecklistType): List<Pair<String, Int>> =
+        computeAvailablePhases(allItems.value, module.id, checklist)
 
     // MARK: - Item CRUD
 

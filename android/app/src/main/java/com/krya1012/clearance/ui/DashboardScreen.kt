@@ -42,12 +42,11 @@ fun DashboardScreen(
     completedCount: Int,
     totalActiveCount: Int,
     onToggleItem: (ChecklistItem) -> Unit,
+    onEditItem: (ChecklistItem) -> Unit,
     onToggleTodayActivity: (ActivityModule) -> Unit,
     onToggleTomorrowActivity: (ActivityModule) -> Unit,
-    // Schedule editing and task add land in Milestone 5; the top-bar entry points
-    // already exist here so their layout position matches the iOS/plan spec.
-    onOpenSchedule: () -> Unit = {},
-    onAddTask: () -> Unit = {},
+    onOpenSchedule: () -> Unit,
+    onAddTask: () -> Unit,
 ) {
     Scaffold { innerPadding ->
         Column(
@@ -84,7 +83,7 @@ fun DashboardScreen(
                         onToggleToday = onToggleTodayActivity,
                         onToggleTomorrow = onToggleTomorrowActivity,
                     )
-                    checklistSectionContent(sections = sections, onToggle = onToggleItem)
+                    checklistSectionContent(sections = sections, onToggle = onToggleItem, onEdit = onEditItem)
                     item(key = "fab-spacer") {
                         Box(modifier = Modifier.height(88.dp))
                     }

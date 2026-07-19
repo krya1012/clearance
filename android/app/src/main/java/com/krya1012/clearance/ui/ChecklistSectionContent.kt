@@ -29,6 +29,7 @@ import com.krya1012.clearance.vm.ChecklistSection
 fun LazyListScope.checklistSectionContent(
     sections: List<ChecklistSection>,
     onToggle: (ChecklistItem) -> Unit,
+    onEdit: (ChecklistItem) -> Unit,
 ) {
     sections.forEach { section ->
         stickyHeader(key = "module-${section.module.id}") {
@@ -44,6 +45,7 @@ fun LazyListScope.checklistSectionContent(
                 ChecklistRow(
                     item = item,
                     onToggle = { onToggle(item) },
+                    onEdit = { onEdit(item) },
                     modifier = Modifier.padding(horizontal = Layout.ScreenPadding, vertical = 5.dp),
                 )
             }

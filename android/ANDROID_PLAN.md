@@ -2,7 +2,15 @@
 
 ## Status
 
-**Milestones 1–4 (scaffold + data layer + ViewModel + core UI) are done** — see `android/app/src/main/java/com/krya1012/clearance/data/`, `domain/`, `vm/ChecklistViewModel.kt`, and `ui/`. `DashboardScreen`, `ActivitySelectorSection`, `ChecklistSectionContent`, `ChecklistRow`, and `ProgressHeaderView` already exist in code and are the source of truth if this doc and the code ever disagree. Not yet built: `ScheduleEditorSheet`, `WeeklyPlanGrid`, `ModuleManagerSheet`, `ItemEditorSheet` (milestone 5+) — the top bar's calendar/add buttons are wired to no-op stubs until then.
+**Milestones 1–5 (scaffold + data layer + ViewModel + core UI + schedule/module management UI)
+are done** — see `android/app/src/main/java/com/krya1012/clearance/data/`, `domain/`,
+`vm/ChecklistViewModel.kt`, and `ui/`. `DashboardScreen`, `ActivitySelectorSection`,
+`ChecklistSectionContent`, `ChecklistRow`, `ProgressHeaderView`, `ScheduleEditorSheet`,
+`WeeklyPlanGrid`, `ModuleManagerSheet`, `ModuleEditSheet`, `TemplateLibrarySheet`, and
+`ItemEditorSheet` already exist in code and are the source of truth if this doc and the code
+ever disagree. The top bar's calendar/add buttons, and long-press-to-edit on task rows, are
+wired to real sheets now. Not yet built: milestone 6 polish (haptics, animations beyond what
+already exists, an accessibility pass, adaptive launcher icon, `android/README.md`).
 
 ## Context
 

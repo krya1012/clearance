@@ -1,8 +1,11 @@
 package com.krya1012.clearance.vm
 
 import com.krya1012.clearance.data.ActivityModule
+import com.krya1012.clearance.data.ActivityType
 import com.krya1012.clearance.data.ChecklistItem
 import com.krya1012.clearance.data.ChecklistType
+import com.krya1012.clearance.data.TemplateEntry
+import com.krya1012.clearance.data.TemplateFrequency
 import com.krya1012.clearance.data.Weekday
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -248,5 +251,39 @@ class ChecklistViewModelTest {
         val gymSection = gated.sections.first { it.module.id == "gym" }
         assertEquals(listOf("A", "B"), gymSection.phases.map { it.name })
         assertEquals(listOf("gym-p1-a", "gym-p1-b"), gymSection.phases.last().items.map { it.id })
+    }
+
+    // MARK: - computeTemplateInstalled
+
+    private val gymTemplate = TemplateEntry("Gym", "🏋️", ActivityType.SPORT, TemplateFrequency.WEEKLY, "tagline")
+
+    @Test
+    fun `template is not installed when no module shares its name`() {
+        assertEquals(false, computeTemplateInstalled(gymTemplate, listOf(core, swim)))
+    }
+
+    @Test
+    fun `template is installed when a module already has its name`() {
+        assertEquals(true, computeTemplateInstalled(gymTemplate, listOf(core, gym)))
+    }
+
+    // MARK: - computeAvailablePhases
+
+    @Test
+    fun `available phases are empty when the module has no items for that checklist`() {
+        val result = computeAvailablePhases(items = emptyList(), moduleId = "gym", checklist = ChecklistType.MORNING)
+        assertEquals(emptyList<Pair<String, Int>>(), result)
+    }
+
+    @Test
+    fun `available phases are distinct, ordered by phaseIndex, ignoring other modules and checklists`() {
+        val items = listOf(
+            item("gym-morning-a", gym, ChecklistType.MORNING, phase = "Gear check", phaseIndex = 0, orderIndex = 0),
+            item("gym-morning-b", gym, ChecklistType.MORNING, phase = "Gear check", phaseIndex = 0, orderIndex = 1),
+            item("gym-evening", gym, ChecklistType.EVENING, phase = "Unload", phaseIndex = 1, orderIndex = 0),
+            item("swim-morning", swim, ChecklistType.MORNING, phase = "Other module", phaseIndex = 0, orderIndex = 0),
+        )
+        val result = computeAvailablePhases(items = items, moduleId = "gym", checklist = ChecklistType.MORNING)
+        assertEquals(listOf("Gear check" to 0), result)
     }
 }
