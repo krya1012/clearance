@@ -13,15 +13,9 @@ abstract class ClearanceDatabase : RoomDatabase() {
     abstract fun itemDao(): ChecklistItemDao
 
     companion object {
-        @Volatile private var instance: ClearanceDatabase? = null
+        const val DB_NAME = "clearance.db"
 
-        fun getInstance(context: Context): ClearanceDatabase =
-            instance ?: synchronized(this) {
-                instance ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    ClearanceDatabase::class.java,
-                    "clearance.db"
-                ).build().also { instance = it }
-            }
+        fun build(context: Context): ClearanceDatabase =
+            Room.databaseBuilder(context.applicationContext, ClearanceDatabase::class.java, DB_NAME).build()
     }
 }

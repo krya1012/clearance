@@ -169,12 +169,17 @@ modules by name against existing records:
    otherwise they'd re-run on every future bump against a user's own later module reusing one
    of those names
 
-**Not yet ported from iOS:** `Clearance.swift`'s recovery path — if the store ever ends up
-with zero modules (e.g. after a corrupted/unopenable database), reseed regardless of the
-version key and clear `ScheduleStore`'s module-keyed prefs first. `ClearanceDatabase.kt`
-currently has no corruption-recovery path at all (an unhandled `Room.databaseBuilder(...)`
-failure crashes rather than degrading), so this doesn't yet have anywhere to hook in on
-Android — tracked as a separate gap from the seed-migration logic itself.
+**Corruption recovery** (`ClearanceApplication.seedWithRecovery()`) — Android's equivalent of
+iOS's ModelContainer in-memory fallback, implemented differently since Room opens the SQLite
+file lazily (corruption only surfaces on first real query, not at `Room.databaseBuilder(...)`)
+rather than eagerly like SwiftData:
+1. The first `SeedData.seedIfNeeded(...)` call is wrapped in a try/catch.
+2. On failure, close the broken `ClearanceDatabase`, delete the underlying file
+   (`Context.deleteDatabase("clearance.db")`), rebuild a fresh instance, clear
+   `ScheduleStore`'s module-keyed prefs (they'd otherwise reference ids that no longer exist),
+   and retry seeding once against the fresh database.
+3. A second failure after that is treated as truly unrecoverable and propagates — matching
+   iOS's `try!` on its own fallback path.
 
 ---
 
