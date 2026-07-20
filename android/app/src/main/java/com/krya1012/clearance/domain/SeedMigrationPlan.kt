@@ -24,6 +24,16 @@ object SeedMigrationPlan {
     const val DEPRECATED_MODULE_CLEANUP_VERSION = 10
     const val REST_TO_WALKING_RENAME_VERSION = 11
 
+    /**
+     * Whether seeding/migration should run at all: either the store is behind the current
+     * version, or it claims to be current but has zero modules — the latter is what lets a
+     * corrupted-then-recovered (or otherwise emptied) store re-seed even though `storedVersion`
+     * says migration already finished. Mirrors iOS's `storedVersion < currentVersion ||
+     * hasNoModules` gate.
+     */
+    fun shouldSeed(storedVersion: Int, hasNoModules: Boolean): Boolean =
+        storedVersion < CURRENT_VERSION || hasNoModules
+
     private val DEPRECATED_MODULE_NAMES = setOf("Work", "Study", "Cooking", "Leisure")
 
     /**

@@ -9,10 +9,8 @@ import com.krya1012.clearance.domain.isPersistedDataCorrupted
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import java.text.SimpleDateFormat
+import java.time.ZoneId
 import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
 
 /**
  * Persists the recurring weekly activity plan, per-day overrides, enabled
@@ -30,12 +28,14 @@ class ScheduleStore(private val context: Context) {
         val LAST_AUTO_RESET = longPreferencesKey("Clearance.lastAutoReset.v1")
     }
 
-    private val dateKeyFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
-        timeZone = TimeZone.getDefault()
-    }
-
-    /** Stable per-day key, e.g. "2026-06-19", in the device's local timezone. */
-    fun dateKey(date: Date): String = dateKeyFormat.format(date)
+    /**
+     * Stable per-day key, e.g. "2026-06-19", in the device's local timezone. Built from
+     * `java.time` (immutable, thread-safe) rather than a shared `SimpleDateFormat` instance,
+     * which is documented as not thread-safe and could corrupt today/tomorrow keys under
+     * concurrent access from this store's various callers.
+     */
+    fun dateKey(date: Date): String =
+        date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate().toString()
 
     // MARK: - Weekly schedule (Map<Weekday.rawValue, Set<moduleId>>)
 

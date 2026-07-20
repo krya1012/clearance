@@ -23,7 +23,13 @@ object SeedData {
         scheduleStore: ScheduleStore,
     ) {
         val storedVersion = context.clearanceDataStore.data.first()[VERSION_KEY] ?: 0
-        if (storedVersion >= SeedMigrationPlan.CURRENT_VERSION) return
+        // Touching Room here (even when already fully migrated) is what lets a corrupted
+        // store's exception surface for ClearanceApplication.seedWithRecovery() to catch and
+        // rebuild from — without this query, an already-migrated device would return below
+        // having never queried Room at all, silently skipping the designed corruption-recovery
+        // path.
+        val hasNoModules = database.moduleDao().getAll().isEmpty()
+        if (!SeedMigrationPlan.shouldSeed(storedVersion, hasNoModules)) return
 
         var resolvedModules: List<ActivityModule> = emptyList()
         var newOptionalIds: Set<String> = emptySet()

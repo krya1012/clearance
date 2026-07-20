@@ -11,6 +11,9 @@ import com.krya1012.clearance.data.ActivityType
 import com.krya1012.clearance.data.ChecklistItem
 import com.krya1012.clearance.data.ChecklistItemDao
 import com.krya1012.clearance.data.ChecklistType
+import com.krya1012.clearance.data.PeriodicTask
+import com.krya1012.clearance.data.PeriodicTaskStore
+import com.krya1012.clearance.data.Recurrence
 import com.krya1012.clearance.data.ScheduleStore
 import com.krya1012.clearance.data.SeedData
 import com.krya1012.clearance.data.TemplateEntry
@@ -171,6 +174,7 @@ class ChecklistViewModel(
     private val moduleDao: ActivityModuleDao,
     private val itemDao: ChecklistItemDao,
     private val scheduleStore: ScheduleStore,
+    private val periodicTaskStore: PeriodicTaskStore,
 ) : ViewModel() {
 
     // MARK: - Observed state
@@ -186,6 +190,9 @@ class ChecklistViewModel(
     private val _enabledModuleIDs = MutableStateFlow<Set<String>>(emptySet())
     val enabledModuleIDs: StateFlow<Set<String>> = _enabledModuleIDs.asStateFlow()
 
+    /** Flips true once [init]'s stale-UUID reconciliation has published a real value — see [gated]. */
+    private val isEnabledModuleIDsReady = MutableStateFlow(false)
+
     private val _weeklySchedule = MutableStateFlow<Map<Weekday, Set<String>>>(emptyMap())
     val weeklySchedule: StateFlow<Map<Weekday, Set<String>>> = _weeklySchedule.asStateFlow()
 
@@ -194,6 +201,16 @@ class ChecklistViewModel(
 
     private val _resetHour = MutableStateFlow(3)
     val resetHour: StateFlow<Int> = _resetHour.asStateFlow()
+
+    private val _periodicTasks = MutableStateFlow<List<PeriodicTask>>(emptyList())
+    val periodicTasks: StateFlow<List<PeriodicTask>> = _periodicTasks.asStateFlow()
+
+    val weeklyTasks: StateFlow<List<PeriodicTask>> =
+        periodicTasks.map { list -> list.filter { it.recurrence == Recurrence.WEEKLY } }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val monthlyTasks: StateFlow<List<PeriodicTask>> =
+        periodicTasks.map { list -> list.filter { it.recurrence == Recurrence.MONTHLY } }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Bumped by [refresh] so date-rollover (today/tomorrow) is picked up without polling. */
     private val now = MutableStateFlow(System.currentTimeMillis())
@@ -208,9 +225,16 @@ class ChecklistViewModel(
         allModules,
         allItems,
         selectedChecklist,
-        enabledModuleIDs,
+        combine(enabledModuleIDs, isEnabledModuleIDsReady, ::Pair),
         combine(weeklySchedule, activityOverrides, now, ::Triple),
-    ) { modules, items, checklist, enabledIds, (schedule, overrides, nowMillis) ->
+    ) { modules, items, checklist, (enabledIds, enabledIdsReady), (schedule, overrides, nowMillis) ->
+        // Mirrors the allModules.first { it.isNotEmpty() } gate in init{} below: until that
+        // coroutine's enabledModuleIDs reconciliation has published its first real value,
+        // computing sections against the emptySet() default would incorrectly hide every
+        // optional module's items — hold at Gated.EMPTY instead of flashing a Core-only
+        // checklist. Do not remove this gate without also proving enabledModuleIDs can no
+        // longer start at a stale/default value.
+        if (!enabledIdsReady) return@combine Gated.EMPTY
         val today = Calendar.getInstance().apply { timeInMillis = nowMillis }
         val tomorrow = (today.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
         computeGated(
@@ -253,6 +277,7 @@ class ChecklistViewModel(
             _weeklySchedule.value = scheduleStore.loadSchedule()
 
             _resetHour.value = scheduleStore.loadResetHour()
+            _periodicTasks.value = periodicTaskStore.load()
 
             // Gate reconciliation on the Flow's first seeded (non-empty) emission, not
             // `allModules.value` — Room's observeAll() may not have emitted yet at this point,
@@ -266,6 +291,7 @@ class ChecklistViewModel(
             }
             val reconciled = reconcileEnabledModuleIDs(scheduleStore.loadEnabledModuleIDs(), optionalIds)
             _enabledModuleIDs.value = reconciled
+            isEnabledModuleIDsReady.value = true
             scheduleStore.saveEnabledModuleIDs(reconciled)
         }
     }
@@ -275,7 +301,10 @@ class ChecklistViewModel(
     /** Call on every foreground resume (`Lifecycle.Event.ON_RESUME`). */
     fun refresh() {
         now.value = System.currentTimeMillis()
-        viewModelScope.launch { checkAutoReset() }
+        viewModelScope.launch {
+            checkAutoReset()
+            _periodicTasks.value = periodicTaskStore.load()
+        }
     }
 
     private suspend fun checkAutoReset() {
@@ -536,6 +565,39 @@ class ChecklistViewModel(
         }
     }
 
+    // MARK: - Periodic tasks (weekly / monthly)
+
+    fun togglePeriodicTask(task: PeriodicTask) {
+        viewModelScope.launch {
+            _periodicTasks.update { list ->
+                list.map {
+                    if (it.id == task.id) {
+                        val nowCompleted = !it.isCompleted
+                        it.copy(
+                            isCompleted = nowCompleted,
+                            completedDateMillis = if (nowCompleted) System.currentTimeMillis() else null,
+                        )
+                    } else it
+                }
+            }
+            periodicTaskStore.save(periodicTasks.value)
+        }
+    }
+
+    fun addPeriodicTask(title: String, emoji: String = "📋", recurrence: Recurrence) {
+        viewModelScope.launch {
+            _periodicTasks.update { it + PeriodicTask(title = title, emoji = emoji, recurrence = recurrence) }
+            periodicTaskStore.save(periodicTasks.value)
+        }
+    }
+
+    fun deletePeriodicTask(task: PeriodicTask) {
+        viewModelScope.launch {
+            _periodicTasks.update { list -> list.filterNot { it.id == task.id } }
+            periodicTaskStore.save(periodicTasks.value)
+        }
+    }
+
     // MARK: - Construction
 
     class Factory(private val application: ClearanceApplication) : ViewModelProvider.Factory {
@@ -545,6 +607,7 @@ class ChecklistViewModel(
                 moduleDao = application.database.moduleDao(),
                 itemDao = application.database.itemDao(),
                 scheduleStore = application.scheduleStore,
+                periodicTaskStore = application.periodicTaskStore,
             ) as T
         }
     }

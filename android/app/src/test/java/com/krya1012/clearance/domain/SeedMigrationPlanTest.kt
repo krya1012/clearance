@@ -2,6 +2,7 @@ package com.krya1012.clearance.domain
 
 import com.krya1012.clearance.data.ActivityModule
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -117,5 +118,36 @@ class SeedMigrationPlanTest {
     fun `defaultItems returns nothing when there is no Core module`() {
         val gymOnly = listOf(ActivityModule(id = "gym", name = "Gym", emoji = "🏋️", sortOrder = 1))
         assertEquals(emptyList<Any>(), SeedMigrationPlan.defaultItems(gymOnly))
+    }
+
+    // MARK: - shouldSeed
+
+    @Test
+    fun `pre-migration store seeds regardless of module count`() {
+        assertTrue(SeedMigrationPlan.shouldSeed(storedVersion = 5, hasNoModules = false))
+        assertTrue(SeedMigrationPlan.shouldSeed(storedVersion = 5, hasNoModules = true))
+    }
+
+    @Test
+    fun `already-migrated store that is corrupted or emptied still seeds`() {
+        // The exact gap that shipped broken: a device already at CURRENT_VERSION whose Room
+        // database turns out to have zero modules (e.g. recovered from corruption) must still
+        // re-seed, not be skipped just because storedVersion claims migration already finished.
+        assertTrue(
+            SeedMigrationPlan.shouldSeed(
+                storedVersion = SeedMigrationPlan.CURRENT_VERSION,
+                hasNoModules = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `already-migrated, healthy store does not reseed`() {
+        assertFalse(
+            SeedMigrationPlan.shouldSeed(
+                storedVersion = SeedMigrationPlan.CURRENT_VERSION,
+                hasNoModules = false,
+            ),
+        )
     }
 }

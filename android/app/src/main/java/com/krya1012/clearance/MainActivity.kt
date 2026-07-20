@@ -20,7 +20,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.krya1012.clearance.data.ActivityModule
+import com.krya1012.clearance.data.Recurrence
 import com.krya1012.clearance.data.TemplateCatalog
+import com.krya1012.clearance.ui.AddPeriodicTaskSheet
 import com.krya1012.clearance.ui.DashboardScreen
 import com.krya1012.clearance.ui.EditorMode
 import com.krya1012.clearance.ui.ItemEditorSheet
@@ -51,6 +53,8 @@ class MainActivity : ComponentActivity() {
             val totalActiveCount by viewModel.totalActiveCount.collectAsState()
             val weeklySchedule by viewModel.weeklySchedule.collectAsState()
             val resetHour by viewModel.resetHour.collectAsState()
+            val weeklyTasks by viewModel.weeklyTasks.collectAsState()
+            val monthlyTasks by viewModel.monthlyTasks.collectAsState()
 
             val lifecycleOwner = LocalLifecycleOwner.current
             DisposableEffect(lifecycleOwner) {
@@ -83,6 +87,7 @@ class MainActivity : ComponentActivity() {
             var showModuleEditor by remember { mutableStateOf(false) }
             var moduleBeingEdited by remember { mutableStateOf<ActivityModule?>(null) }
             var editorMode by remember { mutableStateOf<EditorMode?>(null) }
+            var addingPeriodicRecurrence by remember { mutableStateOf<Recurrence?>(null) }
 
             ClearanceTheme(checklistType = selectedChecklist) {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -101,6 +106,18 @@ class MainActivity : ComponentActivity() {
                             viewModel.toggle(item)
                         },
                         onEditItem = { item -> editorMode = EditorMode.Edit(item) },
+                        onSkipItem = { item ->
+                            Haptics.skipped(view)
+                            viewModel.skip(item)
+                        },
+                        onRestoreItem = { item ->
+                            Haptics.skipped(view)
+                            viewModel.restore(item)
+                        },
+                        onDeleteItem = { item ->
+                            Haptics.reset(view)
+                            viewModel.deleteItem(item)
+                        },
                         onToggleTodayActivity = { module ->
                             Haptics.moduleToggled(view)
                             viewModel.toggleTodayActivity(module)
@@ -109,6 +126,17 @@ class MainActivity : ComponentActivity() {
                             Haptics.moduleToggled(view)
                             viewModel.toggleTomorrowActivity(module)
                         },
+                        weeklyTasks = weeklyTasks,
+                        monthlyTasks = monthlyTasks,
+                        onTogglePeriodic = { task ->
+                            Haptics.taskToggled(view)
+                            viewModel.togglePeriodicTask(task)
+                        },
+                        onDeletePeriodic = { task ->
+                            Haptics.reset(view)
+                            viewModel.deletePeriodicTask(task)
+                        },
+                        onAddPeriodic = { recurrence -> addingPeriodicRecurrence = recurrence },
                         onOpenSchedule = { showSchedule = true },
                         onAddTask = { editorMode = EditorMode.Add(selectedChecklist) },
                     )
@@ -174,6 +202,14 @@ class MainActivity : ComponentActivity() {
                             onAdd = viewModel::addItem,
                             onUpdate = viewModel::updateItem,
                             onDismiss = { editorMode = null },
+                        )
+                    }
+
+                    addingPeriodicRecurrence?.let { recurrence ->
+                        AddPeriodicTaskSheet(
+                            recurrence = recurrence,
+                            onAdd = { title, emoji -> viewModel.addPeriodicTask(title, emoji, recurrence) },
+                            onDismiss = { addingPeriodicRecurrence = null },
                         )
                     }
                 }

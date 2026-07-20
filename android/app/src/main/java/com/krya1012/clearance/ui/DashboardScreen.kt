@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import com.krya1012.clearance.data.ActivityModule
 import com.krya1012.clearance.data.ChecklistItem
 import com.krya1012.clearance.data.ChecklistType
+import com.krya1012.clearance.data.PeriodicTask
+import com.krya1012.clearance.data.Recurrence
 import com.krya1012.clearance.ui.theme.Layout
 import com.krya1012.clearance.vm.ChecklistSection
 
@@ -48,8 +50,16 @@ fun DashboardScreen(
     totalActiveCount: Int,
     onToggleItem: (ChecklistItem) -> Unit,
     onEditItem: (ChecklistItem) -> Unit,
+    onSkipItem: (ChecklistItem) -> Unit,
+    onRestoreItem: (ChecklistItem) -> Unit,
+    onDeleteItem: (ChecklistItem) -> Unit,
     onToggleTodayActivity: (ActivityModule) -> Unit,
     onToggleTomorrowActivity: (ActivityModule) -> Unit,
+    weeklyTasks: List<PeriodicTask>,
+    monthlyTasks: List<PeriodicTask>,
+    onTogglePeriodic: (PeriodicTask) -> Unit,
+    onDeletePeriodic: (PeriodicTask) -> Unit,
+    onAddPeriodic: (Recurrence) -> Unit,
     onOpenSchedule: () -> Unit,
     onAddTask: () -> Unit,
 ) {
@@ -76,26 +86,89 @@ fun DashboardScreen(
                 modifier = Modifier.padding(horizontal = Layout.ScreenPadding),
             )
 
-            val isEmpty = sections.isEmpty() && enabledModules.isEmpty()
-            Box(modifier = Modifier.fillMaxSize()) {
-                AnimatedVisibility(visible = isEmpty, enter = fadeIn(), exit = fadeOut()) {
-                    EmptyState(modifier = Modifier.fillMaxSize())
-                }
-                AnimatedVisibility(visible = !isEmpty, enter = fadeIn(), exit = fadeOut()) {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        activitySelectorSection(
-                            checklist = selectedChecklist,
-                            enabledModules = enabledModules,
-                            todayActivityIDs = todayActivityIDs,
-                            tomorrowActivityIDs = tomorrowActivityIDs,
-                            onToggleToday = onToggleTodayActivity,
-                            onToggleTomorrow = onToggleTomorrowActivity,
-                        )
-                        checklistSectionContent(sections = sections, onToggle = onToggleItem, onEdit = onEditItem)
-                        item(key = "fab-spacer") {
-                            Box(modifier = Modifier.height(88.dp))
-                        }
-                    }
+            val isEmpty = sections.isEmpty() && enabledModules.isEmpty() &&
+                weeklyTasks.isEmpty() && monthlyTasks.isEmpty()
+            EmptyOrChecklistContent(
+                isEmpty = isEmpty,
+                selectedChecklist = selectedChecklist,
+                enabledModules = enabledModules,
+                todayActivityIDs = todayActivityIDs,
+                tomorrowActivityIDs = tomorrowActivityIDs,
+                sections = sections,
+                onToggleItem = onToggleItem,
+                onEditItem = onEditItem,
+                onSkipItem = onSkipItem,
+                onRestoreItem = onRestoreItem,
+                onDeleteItem = onDeleteItem,
+                onToggleTodayActivity = onToggleTodayActivity,
+                onToggleTomorrowActivity = onToggleTomorrowActivity,
+                weeklyTasks = weeklyTasks,
+                monthlyTasks = monthlyTasks,
+                onTogglePeriodic = onTogglePeriodic,
+                onDeletePeriodic = onDeletePeriodic,
+                onAddPeriodic = onAddPeriodic,
+            )
+        }
+    }
+}
+
+/**
+ * The empty-state / list switcher, extracted to a sibling composable so `AnimatedVisibility`
+ * resolves to the top-level (non-scoped) overload rather than ambiguously matching
+ * `ColumnScope.AnimatedVisibility` via the outer `Column` in `DashboardScreen`.
+ */
+@Composable
+private fun EmptyOrChecklistContent(
+    isEmpty: Boolean,
+    selectedChecklist: ChecklistType,
+    enabledModules: List<ActivityModule>,
+    todayActivityIDs: Set<String>,
+    tomorrowActivityIDs: Set<String>,
+    sections: List<ChecklistSection>,
+    onToggleItem: (ChecklistItem) -> Unit,
+    onEditItem: (ChecklistItem) -> Unit,
+    onSkipItem: (ChecklistItem) -> Unit,
+    onRestoreItem: (ChecklistItem) -> Unit,
+    onDeleteItem: (ChecklistItem) -> Unit,
+    onToggleTodayActivity: (ActivityModule) -> Unit,
+    onToggleTomorrowActivity: (ActivityModule) -> Unit,
+    weeklyTasks: List<PeriodicTask>,
+    monthlyTasks: List<PeriodicTask>,
+    onTogglePeriodic: (PeriodicTask) -> Unit,
+    onDeletePeriodic: (PeriodicTask) -> Unit,
+    onAddPeriodic: (Recurrence) -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        AnimatedVisibility(visible = isEmpty, enter = fadeIn(), exit = fadeOut()) {
+            EmptyState(modifier = Modifier.fillMaxSize())
+        }
+        AnimatedVisibility(visible = !isEmpty, enter = fadeIn(), exit = fadeOut()) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                activitySelectorSection(
+                    checklist = selectedChecklist,
+                    enabledModules = enabledModules,
+                    todayActivityIDs = todayActivityIDs,
+                    tomorrowActivityIDs = tomorrowActivityIDs,
+                    onToggleToday = onToggleTodayActivity,
+                    onToggleTomorrow = onToggleTomorrowActivity,
+                )
+                checklistSectionContent(
+                    sections = sections,
+                    onToggle = onToggleItem,
+                    onEdit = onEditItem,
+                    onSkip = onSkipItem,
+                    onRestore = onRestoreItem,
+                    onDelete = onDeleteItem,
+                )
+                periodicSectionContent(
+                    weeklyTasks = weeklyTasks,
+                    monthlyTasks = monthlyTasks,
+                    onToggle = onTogglePeriodic,
+                    onDelete = onDeletePeriodic,
+                    onAdd = onAddPeriodic,
+                )
+                item(key = "fab-spacer") {
+                    Box(modifier = Modifier.height(88.dp))
                 }
             }
         }
